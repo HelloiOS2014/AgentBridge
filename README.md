@@ -7,12 +7,17 @@
 
 ## 快速开始（3 步）
 
-1. **装 marketplace**：在你用的 Host 里添加本仓库
-   - Claude Code：`/plugin marketplace add <本仓库>` · Codex / Grok 见[分 Host 文档](#分-host-安装)
-2. **按需装插件**：`/plugin install <target>-bridge` —— 只要 Antigravity 就装 `antigravity-bridge`，只要 Grok 就装 `grok-bridge`，想桥谁装谁
-3. **直接用**：对话里说「让 Antigravity 看这张图」「让 Codex plan 一下这个重构」
+**1. 装 marketplace + 插件**（按你用的 Host 选一行，想桥谁就装谁的 bridge）
 
-首次调用自动完成引擎就位（插件自包含完整引擎，自举到 `~/.agent-bridge/engine/`，**多 Host 共用一份**，升级自动覆盖）。无需 export 任何变量。
+| Host | 添加 marketplace | 装插件 |
+|------|------------------|--------|
+| **Claude Code** | `/plugin marketplace add <本仓库>` | `/plugin install antigravity-bridge`（或 `codex-bridge` / `grok-bridge`） |
+| **Codex** | `codex plugin marketplace add <本仓库 git URL> --ref main` | 在 Codex App **Plugins** 里 Add：`claude-bridge` / `grok-bridge` / `antigravity-bridge` |
+| **Grok** | 在 Grok 里添加本仓库的 marketplace（按 Grok 插件机制） | 装需要的 bridge：`claude-bridge` / `codex-bridge` / `antigravity-bridge` |
+
+**2. 直接用**：对话里说「让 Antigravity 看这张图」「让 Codex plan 一下这个重构」
+
+**3. 首次调用自动完成引擎就位**：插件自包含完整引擎，首次触发自举到 `~/.agent-bridge/engine/`（**多 Host 共用一份**，升级自动覆盖）。无需 export 任何变量、无需 npm。
 
 ## 使用示例
 
@@ -63,14 +68,6 @@ Host skills（marketplace 插件，按平台拆、不含 self）
     → Adapter（claude | codex | grok | antigravity）
     → 本地 CLI headless（sandbox / 隔离快照）
 ```
-
-## 分 Host 安装
-
-| Host | 文档 |
-|------|------|
-| Codex | [docs/install-codex.md](./docs/install-codex.md) |
-| Claude Code | [docs/install-claude.md](./docs/install-claude.md) |
-| Grok Build | [docs/install-grok.md](./docs/install-grok.md) |
 
 ## 文档
 
