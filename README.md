@@ -75,6 +75,8 @@ agent-bridge doctor --host codex
 - [x] **Phase 3**：skill 模板 + generate + install 写用户 skill
 - [x] **Phase 4**：getting-started / 分 Host 安装文档 + doctor + plugin 元数据
 - [ ] Phase 5（可选）：Codex L3 app-server、真后台 worker
+- [x] **硬化收尾**：job 索引原子写 + 扫描兜底、antigravity 忽略条目过滤、死代码清理、git-context 真仓测试
+- [x] **CLI 表面收敛**：storage / cleanup / status --all / install --remove
 
 ## 许可
 
