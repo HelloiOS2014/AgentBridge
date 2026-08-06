@@ -106,3 +106,27 @@ describe("antigravity adapter", () => {
     assert.equal(result.metadata.readOnlyLevel, "isolation+probe");
   });
 });
+
+describe("agy headless argv (official docs)", () => {
+  it("always emits --output-format json", () => {
+    const args = buildAgyArgs({ prompt: "hi" });
+    assert.ok(args.includes("--output-format"));
+    assert.equal(args[args.indexOf("--output-format") + 1], "json");
+  });
+
+  it("--mode plan only for kind plan", () => {
+    assert.ok(buildAgyArgs({ kind: "plan", prompt: "hi" }).includes("--mode"));
+    assert.ok(!buildAgyArgs({ kind: "review", prompt: "hi" }).includes("--mode"));
+    assert.ok(!buildAgyArgs({ kind: "rescue", prompt: "hi" }).includes("--mode"));
+    assert.ok(!buildAgyArgs({ prompt: "hi" }).includes("--mode"));
+  });
+
+  it("--print-timeout defaults to 15m, explicit value passes through", () => {
+    const args = buildAgyArgs({ prompt: "hi" });
+    const i = args.indexOf("--print-timeout");
+    assert.ok(i >= 0);
+    assert.equal(args[i + 1], "15m");
+    const custom = buildAgyArgs({ printTimeout: "30m", prompt: "hi" });
+    assert.equal(custom[custom.indexOf("--print-timeout") + 1], "30m");
+  });
+});
