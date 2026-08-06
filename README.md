@@ -77,8 +77,7 @@ Host skills（marketplace 插件，按平台拆、不含 self）
 |------|------|
 | [docs/getting-started.md](./docs/getting-started.md) | 快速开始 |
 | [docs/design.md](./docs/design.md) | 设计真源（架构 / 安全模型 / 契约） |
-| [docs/agent-differences.md](./docs/agent-differences.md) | 各 Agent CLI 差异与已知坑（如 agy `--model` 坏路） |
-| [docs/reference-codex-plugin-cc.md](./docs/reference-codex-plugin-cc.md) | 参考实现分析（勿整搬） |
+| [docs/agent-differences.md](./docs/agent-differences.md) | 各 Agent CLI 差异与已知坑 |
 
 ## 兼容与迁移
 
