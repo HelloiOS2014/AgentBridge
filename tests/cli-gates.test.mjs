@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import crypto from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -53,6 +56,26 @@ describe("cli gates", () => {
       env
     });
     assert.equal(r.status, EXIT.NESTED);
+  });
+
+  it("status on corrupt job exits 1 with job_corrupt", () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-cli-"));
+    const stateDir = path.join(home, "state");
+    const id = crypto.randomUUID();
+    const jobFile = path.join(stateDir, "codex", "claude", "ws", "jobs", `${id}.json`);
+    fs.mkdirSync(path.dirname(jobFile), { recursive: true });
+    fs.writeFileSync(jobFile, "{ broken", "utf8");
+    fs.writeFileSync(
+      path.join(stateDir, "job-index.json"),
+      JSON.stringify({ [id]: { host: "codex", target: "claude", workspaceHash: "ws", path: jobFile } }, null, 2),
+      "utf8"
+    );
+    const r = spawnSync(process.execPath, [cli, "status", id, "--json"], {
+      encoding: "utf8",
+      env: { ...process.env, AGENT_BRIDGE_STATE_DIR: stateDir, AGENT_BRIDGE_HOME: home }
+    });
+    assert.equal(r.status, EXIT.FAIL);
+    assert.equal(JSON.parse(r.stdout).errorCode, "job_corrupt");
   });
 
   it("install rejects self targets", () => {

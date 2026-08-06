@@ -154,6 +154,14 @@ async function main() {
       }, asJson);
       return;
     }
+    if (found.corrupt) {
+      fail(EXIT.FAIL, {
+        errorCode: "job_corrupt",
+        errorMessage: `Job file corrupt: ${jobId}`,
+        jobId
+      }, asJson);
+      return;
+    }
     if (command === "cancel") {
       emit(
         {
