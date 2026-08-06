@@ -18,8 +18,8 @@
    - `target === lockedHost` → exit 3；`NESTED=1` → exit 4。
    - `ALLOW_SELF` / `ALLOW_UNSCOPED` 仅测试/调试，不进用户主文档。
 
-3. **CLI-only（第一期）**
-   - 不在 plugin 清单加 MCP 作为核心路径。
+3. **CLI-only（永久，禁止 MCP）**
+   - 项目**永远不采用 MCP** 作为接口（plugin 清单、核心路径、适配层均不引入 MCP）；集成面只有 CLI 命令。
    - **生产路径 = marketplace 插件自足**：插件打包完整引擎（`src/`），skill 首用自举到 `~/.agent-bridge/engine/` 与 `~/.agent-bridge/bin/agent-bridge-<host>`（幂等、版本防漂移、机器级唯一引擎）；npm / `npm link` 不是前提；`agent-bridge install` 是补充通道（自动化/批量），不替代 marketplace。
    - 改引擎后必须重跑 `node scripts/generate-skills.mjs`（插件内 `src/` 副本由 check-manifest 强制与根一致）。
 

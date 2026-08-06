@@ -50,6 +50,7 @@ agent-bridge --background …                # 后台 worker，status/cancel 跟
 | **Host lock** | 委派经写死宿主身份的 wrapper 进入，冒充宿主会被拒绝 |
 | **防递归** | `NESTED` 标记 + self 拒绝（exit 3/4） |
 | **禁危险旗标** | `--bare` / `--yolo` / `--dangerously-bypass-*` 全局禁止 |
+| **禁 MCP** | 项目永久不采用 MCP 作为接口（核心路径仅 CLI 命令） |
 | **防上下文爆炸** | 回传截断（磁盘存全量，`result --full` 取全文）；job 7 天 TTL 自动清理 |
 | **外部文件** | `--attach` 只读复制进隔离快照/工作区，跑完清理（write 任务保留产出） |
 

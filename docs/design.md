@@ -43,10 +43,10 @@ codex-agent-bridge 已验证：Skill + Companion CLI、按 Target 拆包、只�
 | G4 | 调用方自选安装 Target |
 | G5 | 统一命令语义与 JSON；Core 一份 |
 | G6 | 继承 codex-agent-bridge 安全默认与 job（**rescue 默认只读**，不照搬 codex-plugin-cc 默认写） |
-| G7 | 第一期 CLI-only |
+| G7 | **CLI-only（永久）**：项目**永远禁止 MCP** 作为接口（核心路径仅 CLI 命令） |
 | G8 | 每 Target 有可测 headless 规范与只读分级 |
 
-### 1.3 非目标（第一期）
+### 1.3 非目标（永久）
 
 - agent 间实时总线 / 云端编排  
 - Host 间 skills/MCP 配置同步  
