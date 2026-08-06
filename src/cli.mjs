@@ -267,6 +267,7 @@ async function main() {
       target,
       command,
       prompt: flags.prompt ?? rest.join(" "),
+      model: flags.model,
       write: flags.write,
       cwd: flags.cwd || process.cwd(),
       env: process.env

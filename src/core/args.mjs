@@ -33,6 +33,7 @@ export function parseCliArgv(argv) {
     targets: null,
     remove: null,
     prompt: null,
+    model: null,
     write: false,
     background: false,
     wait: false,
@@ -132,6 +133,16 @@ export function parseCliArgv(argv) {
       const [v, consumed] = valueArg(argv, i);
       flags.cwd = v;
       if (consumed) i += 1;
+      continue;
+    }
+    if (a === "--model") {
+      const [v, consumed] = valueArg(argv, i);
+      flags.model = v;
+      if (consumed) i += 1;
+      continue;
+    }
+    if (a.startsWith("--model=")) {
+      flags.model = a.slice("--model=".length);
       continue;
     }
     if (a.startsWith("-")) {

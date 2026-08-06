@@ -137,4 +137,17 @@ describe("cli surface", () => {
     assert.equal(r.status, EXIT.USAGE);
     assert.equal(JSON.parse(r.stdout).errorCode, "usage");
   });
+
+  it("--model passes through to target argv", () => {
+    const fakeGrok = path.join(root, "tests", "fixtures", "fake-grok.mjs");
+    const r = run(["grok", "plan", "--model", "gemini-3.6-flash-high", "--json", "--prompt", "x"], {
+      AGENT_BRIDGE_LOCKED_HOST: "claude",
+      AGENT_BRIDGE_GROK_BIN: fakeGrok
+    });
+    assert.equal(r.status, EXIT.OK);
+    const args = JSON.parse(r.stdout).metadata.args;
+    const mIdx = args.indexOf("-m");
+    assert.ok(mIdx >= 0, `expected -m in args: ${JSON.stringify(args)}`);
+    assert.equal(args[mIdx + 1], "gemini-3.6-flash-high");
+  });
 });
