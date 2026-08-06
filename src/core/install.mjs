@@ -8,7 +8,7 @@ import {
   hostWrapperPath,
   packageRoot
 } from "./paths.mjs";
-import { installHostSkills } from "./skill-install.mjs";
+import { installHostSkills, userSkillsRoot } from "./skill-install.mjs";
 
 /**
  * @param {string} host
@@ -162,4 +162,45 @@ export function readHostLock(host, env = process.env) {
     return null;
   }
   return JSON.parse(fs.readFileSync(p, "utf8"));
+}
+
+/**
+ * 卸载：移除 wrapper / lock / PATH 链接；skills 只删本工具安装的 <target>-* 目录
+ * （不碰 userSkillsRoot 里其它内容，如 ~/.claude/skills 下的用户自有 skill）。
+ * @param {string} host
+ * @param {NodeJS.ProcessEnv} [env]
+ * @param {string | null} [target] 指定则只卸载该 target 的 skills
+ */
+export function runUninstall(host, env = process.env, target = null) {
+  const removed = [];
+  // 先读 lock：删掉 lock 后就拿不到 targets 列表了
+  const lock = readHostLock(host, env);
+  const wrapper = hostWrapperPath(host, env);
+  const lockFile = hostLockPath(host, env);
+  if (fs.existsSync(wrapper)) {
+    fs.rmSync(wrapper, { force: true });
+    removed.push(wrapper);
+  }
+  if (fs.existsSync(lockFile)) {
+    fs.rmSync(lockFile, { force: true });
+    removed.push(lockFile);
+  }
+  const localBin = path.join(env.HOME || env.USERPROFILE || "", ".local", "bin");
+  const pathLink = path.join(localBin, `agent-bridge-${host}`);
+  if (fs.existsSync(pathLink)) {
+    fs.rmSync(pathLink, { force: true });
+    removed.push(pathLink);
+  }
+  const targets = target ? [target] : (lock?.targets ?? []);
+  const skillsRoot = userSkillsRoot(host, env);
+  if (targets.length > 0 && fs.existsSync(skillsRoot)) {
+    for (const name of fs.readdirSync(skillsRoot)) {
+      if (targets.some((t) => name.startsWith(`${t}-`))) {
+        const dir = path.join(skillsRoot, name);
+        fs.rmSync(dir, { recursive: true, force: true });
+        removed.push(dir);
+      }
+    }
+  }
+  return { host, removed };
 }

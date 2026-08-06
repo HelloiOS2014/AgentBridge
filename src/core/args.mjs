@@ -24,6 +24,7 @@ const COMMANDS = new Set([
 export function parseCliArgv(argv) {
   const flags = {
     host: null,
+    target: null,
     json: false,
     list: false,
     apply: false,
@@ -40,6 +41,12 @@ export function parseCliArgv(argv) {
   };
   /** @type {string[]} */
   const positionals = [];
+
+  /** 取下一个 argv 作为值；下一个不存在或以 "-" 开头则视为缺值（不吞 flag）。 */
+  function valueArg(argv, i) {
+    const v = argv[i + 1];
+    return v !== undefined && !v.startsWith("-") ? [v, true] : [null, false];
+  }
 
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
@@ -80,17 +87,29 @@ export function parseCliArgv(argv) {
       continue;
     }
     if (a === "--host") {
-      flags.host = argv[i + 1] ?? null;
-      i += 1;
+      const [v, consumed] = valueArg(argv, i);
+      flags.host = v;
+      if (consumed) i += 1;
       continue;
     }
     if (a.startsWith("--host=")) {
       flags.host = a.slice("--host=".length);
       continue;
     }
+    if (a === "--target") {
+      const [v, consumed] = valueArg(argv, i);
+      flags.target = v;
+      if (consumed) i += 1;
+      continue;
+    }
+    if (a.startsWith("--target=")) {
+      flags.target = a.slice("--target=".length);
+      continue;
+    }
     if (a === "--targets") {
-      flags.targets = argv[i + 1] ?? null;
-      i += 1;
+      const [v, consumed] = valueArg(argv, i);
+      flags.targets = v;
+      if (consumed) i += 1;
       continue;
     }
     if (a.startsWith("--targets=")) {
@@ -98,8 +117,10 @@ export function parseCliArgv(argv) {
       continue;
     }
     if (a === "--remove") {
-      flags.remove = argv[i + 1] ?? null;
-      i += 1;
+      const [v, consumed] = valueArg(argv, i);
+      // "" = flag present without value → cli 层卸载整个 host（`--remove <target>` 才带值）
+      flags.remove = v ?? "";
+      if (consumed) i += 1;
       continue;
     }
     if (a === "--prompt") {
@@ -108,8 +129,9 @@ export function parseCliArgv(argv) {
       continue;
     }
     if (a === "--cwd") {
-      flags.cwd = argv[i + 1] ?? null;
-      i += 1;
+      const [v, consumed] = valueArg(argv, i);
+      flags.cwd = v;
+      if (consumed) i += 1;
       continue;
     }
     if (a.startsWith("-")) {
@@ -157,8 +179,11 @@ export function usageText() {
     "  agent-bridge --host <host> <target> <command> [options]",
     "  agent-bridge-<host> <target> <command> [options]",
     "  agent-bridge status|result|cancel <job-id> [--json]",
+    "  agent-bridge status --all [--host <host>] [--target <target>] [--json]",
+    "  agent-bridge storage [--json]",
+    "  agent-bridge cleanup [--host <host>] [--target <target>] [--all] [--json]",
     "  agent-bridge doctor [--host <host>] [--json]",
-    "  agent-bridge install --host <host> [--targets a,b] [--list] [--apply] [--dry-run]",
+    "  agent-bridge install --host <host> [--targets a,b] [--list] [--remove [target]] [--apply] [--dry-run]",
     "  agent-bridge help",
     "",
     "Hosts: codex | claude | grok",

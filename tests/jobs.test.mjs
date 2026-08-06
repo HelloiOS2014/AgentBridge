@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
-import { lookupJob, newJobId, registerJob } from "../src/core/jobs.mjs";
+import { cleanupJobs, listJobs, lookupJob, newJobId, registerJob, stateReport } from "../src/core/jobs.mjs";
 import { ensureDir } from "../src/core/paths.mjs";
 
 describe("jobs uuid index", () => {
@@ -82,5 +82,54 @@ describe("jobs index resilience", () => {
   it("missing id returns null", () => {
     const env = makeEnv();
     assert.equal(lookupJob(newJobId(), env), null);
+  });
+});
+
+describe("jobs list / report / cleanup", () => {
+  function makeEnv() {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-state-"));
+    return { AGENT_BRIDGE_STATE_DIR: path.join(home, "state"), AGENT_BRIDGE_HOME: home };
+  }
+  function seed(env, host, target, ws, id) {
+    const jobFile = path.join(env.AGENT_BRIDGE_STATE_DIR, host, target, ws, "jobs", `${id}.json`);
+    ensureDir(path.dirname(jobFile));
+    fs.writeFileSync(jobFile, JSON.stringify({ id, status: "completed", kind: "plan", summary: "s", host, target }, null, 2), "utf8");
+    return jobFile;
+  }
+
+  it("listJobs scans across buckets", () => {
+    const env = makeEnv();
+    seed(env, "codex", "claude", "ws1", newJobId());
+    seed(env, "claude", "grok", "ws2", newJobId());
+    const jobs = listJobs(env);
+    assert.equal(jobs.length, 2);
+    assert.ok(jobs.every((j) => j.jobId && j.host && j.target && j.path));
+  });
+
+  it("stateReport counts buckets and bytes", () => {
+    const env = makeEnv();
+    seed(env, "codex", "claude", "ws1", newJobId());
+    seed(env, "codex", "claude", "ws1", newJobId());
+    const report = stateReport(env);
+    assert.equal(report.jobCount, 2);
+    assert.deepEqual(report.buckets, [{ bucket: "codex/claude", count: 2 }]);
+    assert.ok(report.totalBytes > 0);
+  });
+
+  it("cleanupJobs requires scope", () => {
+    const env = makeEnv();
+    assert.throws(() => cleanupJobs(env, {}), /--all or --host\/--target/);
+  });
+
+  it("cleanupJobs --all deletes and rebuilds index", () => {
+    const env = makeEnv();
+    const id = newJobId();
+    const jobFile = seed(env, "codex", "grok", "ws3", id);
+    registerJob({ id, host: "codex", target: "grok", workspaceHash: "ws3", jobFile, env });
+    const res = cleanupJobs(env, { all: true });
+    assert.equal(res.deleted, 1);
+    assert.equal(res.remaining, 0);
+    assert.equal(fs.existsSync(jobFile), false);
+    assert.equal(lookupJob(id, env), null); // 索引已重建，不再有孤儿条目
   });
 });

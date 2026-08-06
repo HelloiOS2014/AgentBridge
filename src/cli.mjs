@@ -2,8 +2,8 @@
 import { parseCliArgv, usageText } from "./core/args.mjs";
 import { EXIT } from "./core/exit-codes.mjs";
 import { allowedTargets, isHostId } from "./core/ids.mjs";
-import { runInstall, resolveInstallTargets } from "./core/install.mjs";
-import { lookupJob } from "./core/jobs.mjs";
+import { runInstall, resolveInstallTargets, runUninstall } from "./core/install.mjs";
+import { cleanupJobs, listJobs, lookupJob, stateReport } from "./core/jobs.mjs";
 import { runDoctor } from "./core/doctor.mjs";
 import { runDelegation } from "./core/run.mjs";
 import { evaluateGates } from "./core/safety.mjs";
@@ -103,6 +103,21 @@ async function main() {
         );
         process.exit(EXIT.OK);
       }
+      if (flags.remove !== null && !flags.targets) {
+        const result = runUninstall(flags.host, process.env, flags.remove || null);
+        emit(
+          {
+            status: "completed",
+            kind: "install",
+            action: "remove",
+            host: flags.host,
+            summary: `Uninstalled host=${flags.host}: ${result.removed.length} path(s)`,
+            removed: result.removed
+          },
+          asJson
+        );
+        process.exit(EXIT.OK);
+      }
       const targets = resolveInstallTargets(flags.host, flags.targets);
       const apply = Boolean(flags.apply) && !flags.dryRun;
       // default dry-run unless --apply
@@ -132,11 +147,48 @@ async function main() {
     return;
   }
 
+  if (command === "storage") {
+    emit({ status: "completed", kind: "storage", ...stateReport() }, asJson);
+    process.exit(EXIT.OK);
+  }
+
+  if (command === "cleanup") {
+    try {
+      const res = cleanupJobs(process.env, { host: flags.host, target: flags.target, all: flags.all });
+      emit({ status: "completed", kind: "cleanup", ...res }, asJson);
+      process.exit(EXIT.OK);
+    } catch (error) {
+      fail(EXIT.USAGE, {
+        errorCode: "usage",
+        errorMessage: error instanceof Error ? error.message : String(error)
+      }, asJson);
+      return;
+    }
+  }
+
   if (command === "doctor") {
     const host = flags.host ?? gate.host;
     const report = await runDoctor({ host, env: process.env, cwd: process.cwd() });
     emit(report, asJson);
     process.exit(report.ready === false ? EXIT.NOT_READY : EXIT.OK);
+  }
+
+  if ((command === "status" || command === "result") && !rest[0] && flags.all) {
+    const jobs = listJobs()
+      .filter((j) => !flags.host || j.host === flags.host)
+      .filter((j) => !flags.target || j.target === flags.target);
+    emit(
+      {
+        status: "completed",
+        kind: command,
+        jobId: null,
+        summary: `${jobs.length} job(s)`,
+        count: jobs.length,
+        jobs
+      },
+      asJson
+    );
+    process.exit(EXIT.OK);
   }
 
   if (command === "status" || command === "result" || command === "cancel") {
@@ -168,7 +220,7 @@ async function main() {
           status: "completed",
           kind: "cancel",
           jobId,
-          summary: "Phase 0: cancel stub (no running workers yet)",
+          summary: "Not implemented: background workers land in Phase 5",
           job: found.job
         },
         asJson
