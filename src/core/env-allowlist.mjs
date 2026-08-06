@@ -45,7 +45,8 @@ export function filterInheritedEnv(source = process.env, configEnv = process.env
   const allowed = allowedEnvNames(configEnv);
   const filtered = {};
   for (const [key, value] of Object.entries(source)) {
-    if (allowed.has(key) || key.startsWith("AGENT_BRIDGE_")) {
+    // AGENT_BRIDGE_* 自有变量与 FAKE_* 测试仪器变量恒放行（fake fixtures 的开关依赖）
+    if (allowed.has(key) || key.startsWith("AGENT_BRIDGE_") || key.startsWith("FAKE_")) {
       filtered[key] = value;
     }
   }

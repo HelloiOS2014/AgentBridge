@@ -89,10 +89,10 @@ describe("background workers", () => {
     assert.equal(r.status, EXIT.FAIL);
     const out = JSON.parse(r.stdout);
     assert.equal(out.errorCode, "wait_timeout");
-    // 清理孤儿 worker（仍在 running，有 pid 可 cancel）
+    // 清理孤儿 worker（仍在 running，有 pid 可 cancel）；cancel 输出轻量，记录状态从 result 读
     const c = run(["cancel", out.jobId, "--json"], env);
     assert.equal(c.status, EXIT.OK);
-    assert.equal(JSON.parse(c.stdout).job.status, "cancelled");
+    assert.equal(jobOf(env, out.jobId).status, "cancelled");
   });
 
   it("cancel terminates a long background job and keeps the record cancelled", async () => {
@@ -105,7 +105,8 @@ describe("background workers", () => {
     assert.equal(jobOf(env, jobId).status, "running");
     const c = run(["cancel", jobId, "--json"], env);
     assert.equal(c.status, EXIT.OK);
-    const cancelled = JSON.parse(c.stdout).job;
+    assert.match(JSON.parse(c.stdout).summary, /cancelled/);
+    const cancelled = jobOf(env, jobId);
     assert.equal(cancelled.status, "cancelled");
     assert.ok(cancelled.cancelledAt);
 
