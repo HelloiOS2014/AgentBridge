@@ -3,3 +3,6 @@ node_modules/
 *.log
 .env
 .agent-bridge-dev/
+
+.claude/worktrees/
+.superpowers/
