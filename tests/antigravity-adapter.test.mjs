@@ -130,3 +130,40 @@ describe("agy headless argv (official docs)", () => {
     assert.equal(custom[custom.indexOf("--print-timeout") + 1], "30m");
   });
 });
+
+describe("agy json envelope parsing", () => {
+  function makeGitDir() {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agy-enc-"));
+    spawnSync("git", ["init"], { cwd: dir, encoding: "utf8" });
+    fs.writeFileSync(path.join(dir, "a.txt"), "a\n");
+    spawnSync("git", ["add", "."], { cwd: dir });
+    spawnSync("git", ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-m", "init"], { cwd: dir, encoding: "utf8" });
+    return dir;
+  }
+
+  it("extracts response from envelope and reports usage", async () => {
+    const dir = makeGitDir();
+    const result = await runAntigravity({
+      kind: "plan",
+      prompt: "plan something",
+      cwd: dir,
+      env: { ...process.env, AGENT_BRIDGE_ANTIGRAVITY_BIN: fakeAgy }
+    });
+    assert.equal(result.ok, true);
+    assert.match(result.output, /Fake Agy response/);
+    assert.ok(result.args.includes("--mode")); // plan kind
+    assert.deepEqual(result.usage, { input_tokens: 1, output_tokens: 1 });
+  });
+
+  it("envelope ERROR with error text fails with errorMessage", async () => {
+    const dir = makeGitDir();
+    const result = await runAntigravity({
+      kind: "review",
+      prompt: "review",
+      cwd: dir,
+      env: { ...process.env, AGENT_BRIDGE_ANTIGRAVITY_BIN: fakeAgy, FAKE_AGY_ERROR: "1" }
+    });
+    assert.equal(result.ok, false);
+    assert.match(result.error, /fake agy error envelope/);
+  });
+});

@@ -148,7 +148,7 @@ export async function runAntigravity(req) {
         "Antigravity read-only→write: use --write without --resume for a fresh write-capable run"
       );
     }
-    const args = buildAgyArgs({ write: true, prompt: req.prompt });
+    const args = buildAgyArgs({ write: true, kind: req.kind, prompt: req.prompt });
     const result = await runCommand(agyBin, args, {
       cwd: req.cwd,
       env,
@@ -156,8 +156,13 @@ export async function runAntigravity(req) {
     });
     const runtimeError = detectAgyRuntimeError(result);
     const parsed = parseAgyJson(result.stdout);
-    const output = parsed?.result ?? parsed?.output ?? parsed?.text ?? result.stdout;
-    const ok = result.status === 0 && !result.error && !result.timedOut && !runtimeError;
+    const envelopeError =
+      parsed && parsed.status && parsed.status !== "SUCCESS" ? String(parsed.error ?? parsed.status) : null;
+    const output =
+      typeof parsed?.response === "string" ? parsed.response
+      : parsed?.result ?? parsed?.output ?? parsed?.text ?? result.stdout;
+    const ok =
+      result.status === 0 && !result.error && !result.timedOut && !runtimeError && !envelopeError;
     return {
       ok,
       output,
@@ -168,7 +173,11 @@ export async function runAntigravity(req) {
       agyBin,
       isolation: null,
       touchedFiles: [],
-      error: runtimeError || (result.error ? result.error.message : result.timedOut ? "timed out" : null)
+      usage: parsed?.usage ?? null,
+      error:
+        envelopeError ||
+        runtimeError ||
+        (result.error ? result.error.message : result.timedOut ? "timed out" : null)
     };
   }
 
@@ -183,7 +192,7 @@ export async function runAntigravity(req) {
       "",
       req.prompt
     ].join("\n");
-    const args = buildAgyArgs({ write: false, prompt: isolatedPrompt });
+    const args = buildAgyArgs({ write: false, kind: req.kind, prompt: isolatedPrompt });
     const result = await runCommand(agyBin, args, {
       cwd: isolation.isolatedCwd,
       env,
@@ -195,10 +204,14 @@ export async function runAntigravity(req) {
     });
     const runtimeError = detectAgyRuntimeError(result);
     const parsed = parseAgyJson(result.stdout);
-    const output = parsed?.result ?? parsed?.output ?? parsed?.text ?? result.stdout;
+    const envelopeError =
+      parsed && parsed.status && parsed.status !== "SUCCESS" ? String(parsed.error ?? parsed.status) : null;
+    const output =
+      typeof parsed?.response === "string" ? parsed.response
+      : parsed?.result ?? parsed?.output ?? parsed?.text ?? result.stdout;
     const probeFail = touchedFiles.length > 0;
     const ok =
-      result.status === 0 && !result.error && !result.timedOut && !runtimeError && !probeFail;
+      result.status === 0 && !result.error && !result.timedOut && !runtimeError && !envelopeError && !probeFail;
     return {
       ok,
       output,
@@ -212,9 +225,12 @@ export async function runAntigravity(req) {
         readOnlyViolation: probeFail
       }),
       touchedFiles,
+      usage: parsed?.usage ?? null,
       error: probeFail
         ? `Antigravity modified isolated workspace: ${touchedFiles.join(", ")}`
-        : runtimeError || (result.error ? result.error.message : result.timedOut ? "timed out" : null)
+        : envelopeError ||
+          runtimeError ||
+          (result.error ? result.error.message : result.timedOut ? "timed out" : null)
     };
   } finally {
     await removeIsolatedWorkspace(isolation);
