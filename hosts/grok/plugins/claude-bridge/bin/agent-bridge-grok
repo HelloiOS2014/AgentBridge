@@ -1,0 +1,16 @@
+#!/usr/bin/env node
+"use strict";
+process.env.AGENT_BRIDGE_LOCKED_HOST = "grok";
+const { spawn } = require("node:child_process");
+const cli = require("node:path").join(require("node:os").homedir(), ".agent-bridge", "engine", "src", "cli.mjs");
+const child = spawn(process.execPath, [cli, ...process.argv.slice(2)], {
+  stdio: "inherit",
+  env: process.env
+});
+child.on("exit", (code, signal) => {
+  if (signal) {
+    process.kill(process.pid, signal);
+    return;
+  }
+  process.exit(code == null ? 1 : code);
+});

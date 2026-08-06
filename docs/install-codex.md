@@ -1,16 +1,8 @@
-# 在 Codex 上安装 AgentBridge
+# 在 Codex 上安装 AgentBridge（Marketplace）
 
-## 推荐：CLI install（一条命令）
+Marketplace 是唯一安装流程：**装 marketplace → 按需装插件 → 即用**。无需 `npm i -g`，无需手动安装命令。
 
-```bash
-# Core 已 npm link / 全局安装
-agent-bridge install --host codex --targets claude,grok,antigravity --apply
-agent-bridge doctor --host codex
-```
-
-Skill 装到 `~/.agent-bridge/skills/codex/`。若 Codex 只扫插件目录，可同时用 marketplace（下节）或把该目录配进 Codex skills 路径。
-
-## Marketplace（插件货架）
+## 1. 添加 marketplace
 
 本仓库根目录：
 
@@ -18,41 +10,31 @@ Skill 装到 `~/.agent-bridge/skills/codex/`。若 Codex 只扫插件目录，�
 .agents/plugins/marketplace.json
 ```
 
-货架插件（**无 Codex self**）：
+```bash
+codex plugin marketplace add <本仓库 git URL> --ref main
+```
+
+## 2. 按需装插件
+
+在 Codex App **Plugins** 里 Add 需要的插件（**无 Codex self**）：
 
 - `claude-bridge`
 - `grok-bridge`
 - `antigravity-bridge`
 
-### Codex CLI
+## 3. 即用（首次自动自举）
 
-```bash
-codex plugin marketplace add <本仓库 git URL> --ref main
-```
+直接说：「让 Claude plan 一下这个重构」。
 
-然后在 Codex App **Plugins** 里按需 Add 上述插件。
-
-### 仍需 install 一次
-
-Marketplace 提供 skill 文案；wrapper 由：
-
-```bash
-agent-bridge install --host codex --apply
-```
-
-生成。Skill 调用：
-
-```bash
-"$HOME/.agent-bridge/bin/agent-bridge-codex" claude plan --json --prompt "..."
-```
+skill 首次调用会自动把插件内自带的完整引擎复制到 `~/.agent-bridge/engine/` 与 `~/.agent-bridge/bin/agent-bridge-codex`（幂等；引擎带版本标记，插件升级后自动覆盖更新，无感）。无需任何手动安装命令。
 
 ## 对话示例
 
-- Ask Claude to plan this architecture  
-- Ask Grok to review my current changes  
-- Ask Antigravity to investigate this failure (read-only)  
+- Ask Claude to plan this architecture
+- Ask Grok to review my current changes
+- Ask Antigravity to investigate this failure (read-only)
 
 ## 注意
 
-- 不要装「codex-bridge」到 Codex Host（货架里也没有）  
-- Companion 在 Codex 沙箱里可能需要 escalated 权限（与旧 claude-companion 相同）  
+- 不要装「codex-bridge」到 Codex Host（货架里也没有）
+- Companion 在 Codex 沙箱里可能需要 escalated 权限

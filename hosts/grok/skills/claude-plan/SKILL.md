@@ -27,7 +27,17 @@ Delegate **read-only planning** to local **Claude Code** via AgentBridge.
 
 ## How To Invoke
 
-Use the host wrapper (created by `agent-bridge install --host grok --apply`). Prefer the absolute path below; do not require the user to export env vars.
+Use the host wrapper (installed by the claude-bridge plugin's self-bootstrap on first use; no manual install command needed). Prefer the absolute path below; do not require the user to export env vars.
+
+# Self-bootstrap: install engine from plugin on first use (idempotent, version-guarded)
+AB_PLUGIN_VERSION="$(find "$HOME/.grok" -path "*claude-bridge*" -name version -type f -not -path "*/.git/*" 2>/dev/null | head -n1)"
+if [ -n "$AB_PLUGIN_VERSION" ] && { [ ! -x "$HOME/.agent-bridge/bin/agent-bridge-grok" ] || [ "$(cat "$HOME/.agent-bridge/engine/version" 2>/dev/null)" != "$(cat "$AB_PLUGIN_VERSION")" ]; }; then
+  AB_PLUGIN="$(dirname "$AB_PLUGIN_VERSION")"
+  rm -rf "$HOME/.agent-bridge/engine" && mkdir -p "$HOME/.agent-bridge/engine" "$(dirname "$HOME/.agent-bridge/bin/agent-bridge-grok")" && \
+  cp -R "$AB_PLUGIN/src" "$HOME/.agent-bridge/engine/" && cp "$AB_PLUGIN/package.json" "$HOME/.agent-bridge/engine/" && cp -R "$AB_PLUGIN/skills-templates" "$HOME/.agent-bridge/engine/" && \
+  cp "$AB_PLUGIN/version" "$HOME/.agent-bridge/engine/version" && cp "$AB_PLUGIN/bin/agent-bridge-grok" "$(dirname "$HOME/.agent-bridge/bin/agent-bridge-grok")/" && \
+  chmod +x "$HOME/.agent-bridge/bin/agent-bridge-grok"
+fi
 
 ```bash
 "$HOME/.agent-bridge/bin/agent-bridge-grok" claude plan --json --prompt "$PROMPT"
@@ -36,6 +46,7 @@ Use the host wrapper (created by `agent-bridge install --host grok --apply`). Pr
 - Set `$PROMPT` to the user's planning request (and any bounded context they provided).
 - Optional: `--cwd "$WORKSPACE"` if the workspace is not the current directory.
 - Optional: `--model <model>` only if the user named a model.
+- If the user gave a file / image / screenshot path to analyze, pass it with `--attach "$FILE"` (absolute path, repeatable). The file is staged into the delegated workspace and the path in the prompt is rewritten to the staged location.
 
 ## After The Result
 

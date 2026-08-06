@@ -1,26 +1,23 @@
-# 在 Grok Build 上安装 AgentBridge
+# 在 Grok Build 上安装 AgentBridge（Marketplace）
 
-## 推荐：CLI install
+Marketplace 是唯一安装流程：**装 marketplace → 按需装插件 → 即用**。无需 `npm i -g`，无需手动安装命令。
 
-```bash
-agent-bridge install --host grok --targets claude,codex,antigravity --apply
-agent-bridge doctor --host grok
-```
+## 1. 添加 marketplace
 
-Skill 写入：`~/.grok/skills/<target>-plan` 等。Grok 会扫描用户 skills 目录。
+按 Grok 当前的插件/marketplace 机制添加本仓库（货架无 Grok self）：`claude-bridge`、`codex-bridge`、`antigravity-bridge`。
 
-新开 Grok 会话后可用。
+## 2. 按需装插件
 
-## 仓库内 skill 树
+想用哪个桥就装哪个（如「让 Claude plan」装 `claude-bridge`）。skill 随插件进入 Grok 的 skills 目录。
 
-```text
-hosts/grok/skills/
-```
+## 3. 即用（首次自动自举）
 
-开发时也可把该目录链到 `~/.grok/skills`，但 **install --apply 已用绝对路径写好**，优先用 install。
+直接说：「让 Antigravity 查一下这个报错（先不要改文件）」。
+
+skill 首次调用会自动把插件内自带的完整引擎复制到 `~/.agent-bridge/engine/` 与 `~/.agent-bridge/bin/agent-bridge-grok`（幂等；引擎带版本标记，插件升级后自动覆盖更新，无感）。无需任何手动安装命令。
 
 ## 对话示例
 
-- Ask Claude to plan this feature  
-- Ask Codex to review current changes  
-- Ask Antigravity to investigate without editing  
+- Ask Claude to plan this feature
+- Ask Codex to review current changes
+- Ask Antigravity to investigate without editing

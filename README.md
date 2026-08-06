@@ -35,28 +35,26 @@ Host skills（按平台拆 marketplace，不含 self）
     → 本地 CLI headless
 ```
 
-## 用户怎么用（不需要手写 export）
+## 用户怎么用（Marketplace 唯一流程，零手动安装命令）
 
 完整步骤：**[docs/getting-started.md](./docs/getting-started.md)**  
 
 分 Host（**入口：各平台原生 marketplace**，见发行说明）：
 [Codex](./docs/install-codex.md) · [Claude](./docs/install-claude.md) · [Grok](./docs/install-grok.md)
 
-```bash
-agent-bridge install --host codex --targets claude,antigravity --apply
-agent-bridge doctor --host codex
-# 然后在 Codex 对话里：「让 Claude plan …」
+```text
+1. 装 marketplace（.claude-plugin/marketplace.json / .agents/plugins/marketplace.json）
+2. 按需 /plugin install <target>-bridge（想桥谁装谁）
+3. 对话里说「让 Claude plan …」→ 首次调用自动自举 → 即用
 ```
 
-**不需要** `export` 任何变量。wrapper / skill 绝对路径由 install/marketplace 写好；CLI 自动发现本机 `claude`/`agy`/`grok`/`codex`。
+每个 bridge 插件自包含完整引擎（`src/` + 静态 wrapper + skills + 版本标记）；skill 首次运行把引擎自举到 `~/.agent-bridge/engine/` 与 `~/.agent-bridge/bin/agent-bridge-<host>`（幂等，插件升级自动覆盖更新）。**不需要** `export` 任何变量，不需要 `npm i -g`。CLI 自动发现本机 `claude`/`agy`/`grok`/`codex`。
 
 ## 发行说明（Phase 5）
 
 - **入口：原生 marketplace 唯一通道**。从所在 Host 的 marketplace 添加本仓库并安装需要的 target bridge（`hosts/*` 货架）；**npm / `npm link` 不再是前提**。`agent-bridge install` 是统一补充通道（自动化 / 无 UI / 批量 targets），不替代 marketplace。
 - **旧环境变量兼容期**：`CLAUDE_COMPANION_*` / `ANTIGRAVITY_COMPANION_*` 在迁移期继续可用（新名 `AGENT_BRIDGE_*` 优先），迁移期结束后移除。
 - **job 状态不强制迁移**：旧布局 job 不自动迁移；新 job 落新布局，旧状态保留可查，`cleanup` 按需清理。
-
-> **skill 模板更新后**：用户侧需重跑 `agent-bridge install --host <host> --apply` 才会同步（marketplace 自足落地后此步取消）。
 
 ## 文档
 
@@ -85,6 +83,8 @@ agent-bridge doctor --host codex
 - [x] **硬化收尾**：job 索引原子写 + 扫描兜底、antigravity 忽略条目过滤、死代码清理、git-context 真仓测试
 - [x] **CLI 表面收敛**：storage / cleanup / status --all / install --remove
 - [x] **Phase 5 余项**：`rescue --write` worktree 隔离、env allowlist（design §11.5）、迁移说明（见发行说明）
+- [x] **marketplace 自足**：插件打包引擎（src+bin+skills+version）、skill 首用自举（幂等、版本防漂移）、check-manifest 引擎一致性断言、docs 重写为 marketplace 唯一流程
+- [x] **外部文件附件**：`--attach`（可重复）、工作区/隔离快照落位、WriteProbe 顺序约束、只读清理 / write 保留产出
 
 ## 许可
 

@@ -25,6 +25,18 @@ Delegate **read-only code/design review** to local **Claude Code**.
 
 ## Commands
 
+The wrapper and engine self-bootstrap from the claude-bridge plugin on first use (no manual install command).
+
+# Self-bootstrap: install engine from plugin on first use (idempotent, version-guarded)
+AB_PLUGIN_VERSION="$(find "$HOME/.codex" -path "*claude-bridge*" -name version -type f -not -path "*/.git/*" 2>/dev/null | head -n1)"
+if [ -n "$AB_PLUGIN_VERSION" ] && { [ ! -x "$HOME/.agent-bridge/bin/agent-bridge-codex" ] || [ "$(cat "$HOME/.agent-bridge/engine/version" 2>/dev/null)" != "$(cat "$AB_PLUGIN_VERSION")" ]; }; then
+  AB_PLUGIN="$(dirname "$AB_PLUGIN_VERSION")"
+  rm -rf "$HOME/.agent-bridge/engine" && mkdir -p "$HOME/.agent-bridge/engine" "$(dirname "$HOME/.agent-bridge/bin/agent-bridge-codex")" && \
+  cp -R "$AB_PLUGIN/src" "$HOME/.agent-bridge/engine/" && cp "$AB_PLUGIN/package.json" "$HOME/.agent-bridge/engine/" && cp -R "$AB_PLUGIN/skills-templates" "$HOME/.agent-bridge/engine/" && \
+  cp "$AB_PLUGIN/version" "$HOME/.agent-bridge/engine/version" && cp "$AB_PLUGIN/bin/agent-bridge-codex" "$(dirname "$HOME/.agent-bridge/bin/agent-bridge-codex")/" && \
+  chmod +x "$HOME/.agent-bridge/bin/agent-bridge-codex"
+fi
+
 Normal review:
 
 ```bash
@@ -38,6 +50,7 @@ Adversarial / focused review:
 ```
 
 Optional: `--cwd "$WORKSPACE"`.
+If the user gave a file / image / design mock to review, pass it with `--attach "$FILE"` (absolute path, repeatable).
 
 ## After The Result
 

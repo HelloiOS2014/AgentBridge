@@ -1,13 +1,12 @@
-# Grok Host surface (Phase 0)
-
-Skills/plugins for Grok Build will live here (or under Grok’s documented plugin paths).
+# Grok Host surface
 
 **Allowed targets (no self):** `claude`, `codex`, `antigravity`.
 
-Install via:
+Layout:
 
-```bash
-agent-bridge install --host grok --targets claude,codex --apply
+```text
+hosts/grok/skills/                 # 平铺 skill（<target>-<kind>/SKILL.md）
+hosts/grok/plugins/<target>-bridge # 插件引擎 payload（src/ + bin/agent-bridge-grok + version + package.json + skills-templates）
 ```
 
-Marketplace layout will follow Grok conventions in Phase 4; Phase 0 only reserves this tree and enforces no-self in `check-manifest`.
+Marketplace install per Grok's plugin mechanism; the skill self-bootstrap copies the plugin engine payload to `~/.agent-bridge/engine` and `~/.agent-bridge/bin/agent-bridge-grok` on first use (idempotent, version-guarded).

@@ -1,68 +1,40 @@
 # AgentBridge 快速开始
 
-**你不需要 export 任何环境变量。**
+**你不需要 export 任何环境变量，也不需要 npm i -g。**
 
 ## 前提
 
-1. 安装 Node.js ≥ 18.18  
+1. 安装 Node.js ≥ 18.18
 2. 本机装好并登录要用的 CLI（按需）：
    - Claude Code：`claude` + `claude auth login`
    - Codex：`codex` + `codex login`
    - Grok Build：`grok`（已登录）
    - Antigravity：`agy`
 
-## 安装 Core
+## 安装（Marketplace 唯一流程）
 
-开发中（本仓库）：
+在你要用的 agent 里按 **[install-claude.md](./install-claude.md)** / **[install-codex.md](./install-codex.md)** / **[install-grok.md](./install-grok.md)**：
 
-```bash
-cd /path/to/AgentBridge
-npm link
-```
-
-之后全局有 `agent-bridge` 命令。
-
-## 按 Host 装一次
-
-在你**主要使用**的 agent 上执行（示例：Codex）：
-
-```bash
-agent-bridge install --host codex --targets claude,grok,antigravity --apply
-agent-bridge doctor --host codex --json
-```
-
-会自动：
-
-- 生成 `~/.agent-bridge/bin/agent-bridge-codex`（内部带 host lock）  
-- 尽量软链到 `~/.local/bin`  
-- 把 skill 写到用户 skill 目录，**命令里是 wrapper 绝对路径**
-
-其它 Host：
-
-```bash
-agent-bridge install --host claude --targets codex,grok,antigravity --apply
-agent-bridge install --host grok --targets claude,codex,antigravity --apply
-```
+1. 添加 marketplace
+2. 按需 `/plugin install`（或等效）装 bridge 插件
+3. 即用——首次调用自动自举：插件自带完整引擎，skill 首次运行把它复制到 `~/.agent-bridge/engine/` 与 `~/.agent-bridge/bin/agent-bridge-<host>`（幂等，插件升级自动覆盖更新）
 
 ## 在对话里用
 
-装好 skill / marketplace 后，直接说例如：
+装好插件后，直接说例如：
 
-- 「让 Claude plan 一下这个重构」  
-- 「让 Grok review 当前改动」  
-- 「让 Antigravity 查一下这个报错（先不要改文件）」  
+- 「让 Claude plan 一下这个重构」
+- 「让 Grok review 当前改动」
+- 「让 Antigravity 查一下这个报错（先不要改文件）」
+- 「帮我把这个截图给 Codex 看看」——skill 会用 `--attach` 把文件送进委派工作区
 
 由 skill 调 wrapper，无需你手敲 CLI。
 
-## 可选：Marketplace
+## 可选：给用户文件 / 图片
 
-| Host | 货架 |
-|------|------|
-| Codex | 见 [install-codex.md](./install-codex.md) |
-| Claude | 见 [install-claude.md](./install-claude.md) |
-| Grok | 见 [install-grok.md](./install-grok.md) |
-
-Marketplace 装的是 skill/plugin 文案；**仍建议跑一次 `install --apply`**，保证本机有 wrapper。
+对话里给出文件路径时，skill 会以 `--attach <绝对路径>`（可重复）把文件复制进委派工作区：
+- 只读任务（plan / review / 只读 rescue）：用完即清理
+- `rescue --write`：附件保留在工作区（是产出），结果里报告路径
 
 ## 查任务
 
@@ -71,9 +43,11 @@ agent-bridge status <job-uuid> --json
 agent-bridge result <job-uuid> --json
 ```
 
+（`agent-bridge` 命令来自引擎 bin；也可用各 host wrapper。）
+
 ## 安全摘要
 
-- 不会装「自己调自己」的 bridge  
-- plan/review/只读 rescue 不改仓库（各 Target 用 tools/sandbox/isolation）  
-- `rescue --write` 仅当用户明确要求改代码  
-- 禁止 bare / yolo / dangerously-bypass 主路径  
+- 不会装「自己调自己」的 bridge
+- plan/review/只读 rescue 不改仓库（各 Target 用 tools/sandbox/isolation）
+- `rescue --write` 仅当用户明确要求改代码
+- 禁止 bare / yolo / dangerously-bypass 主路径
