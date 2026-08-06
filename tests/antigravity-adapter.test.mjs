@@ -77,6 +77,75 @@ describe("antigravity adapter", () => {
     assert.ok(result.touchedFiles.some((f) => f.includes("evil") || f === "evil.txt"));
   });
 
+  it("rescue --write runs in a git worktree; main workspace untouched", async () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-wt-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agy-write-"));
+    spawnSync("git", ["init", "-q"], { cwd: dir, encoding: "utf8" });
+    fs.writeFileSync(path.join(dir, "a.txt"), "a\n");
+    spawnSync("git", ["add", "."], { cwd: dir });
+    spawnSync("git", ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init"], {
+      cwd: dir,
+      encoding: "utf8"
+    });
+
+    let worktreePath = null;
+    try {
+      const result = await runDelegation({
+        host: "codex",
+        target: "antigravity",
+        command: "rescue",
+        prompt: "fix the bug",
+        write: true,
+        cwd: dir,
+        env: {
+          ...process.env,
+          AGENT_BRIDGE_HOME: home,
+          AGENT_BRIDGE_STATE_DIR: path.join(home, "state"),
+          AGENT_BRIDGE_ANTIGRAVITY_BIN: fakeAgy,
+          FAKE_AGY_TOUCH: "fixed.txt"
+        }
+      });
+      assert.equal(result.status, "completed");
+      assert.ok(result.worktree, "worktree must be reported in the result");
+      assert.match(result.worktree.branch, /^agent-bridge-write-\d+$/);
+      worktreePath = result.worktree.path;
+      assert.ok(fs.existsSync(path.join(worktreePath, "fixed.txt")), "write lands in the worktree");
+      assert.ok(!fs.existsSync(path.join(dir, "fixed.txt")), "main workspace untouched");
+      assert.ok(result.touchedFiles.includes("fixed.txt"));
+      assert.equal(result.metadata.isolation.antigravityWorktree.worktreePath, worktreePath);
+      const status = spawnSync("git", ["status", "--short"], { cwd: dir, encoding: "utf8" });
+      assert.equal(status.stdout.trim(), "", "main repo git status stays clean");
+    } finally {
+      if (worktreePath) {
+        spawnSync("git", ["worktree", "remove", "--force", worktreePath], { cwd: dir, encoding: "utf8" });
+        fs.rmSync(path.dirname(worktreePath), { recursive: true, force: true });
+      }
+    }
+  });
+
+  it("rescue --write falls back to direct run outside a git repo", async () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-wt2-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agy-write-nogit-"));
+    const result = await runDelegation({
+      host: "codex",
+      target: "antigravity",
+      command: "rescue",
+      prompt: "fix the bug",
+      write: true,
+      cwd: dir,
+      env: {
+        ...process.env,
+        AGENT_BRIDGE_HOME: home,
+        AGENT_BRIDGE_STATE_DIR: path.join(home, "state"),
+        AGENT_BRIDGE_ANTIGRAVITY_BIN: fakeAgy,
+        FAKE_AGY_TOUCH: "fixed.txt"
+      }
+    });
+    assert.equal(result.status, "completed");
+    assert.equal(result.worktree, null);
+    assert.ok(fs.existsSync(path.join(dir, "fixed.txt")), "write lands in the real dir on fallback");
+  });
+
   it("runDelegation antigravity plan", async () => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-agy-"));
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agy-del-"));

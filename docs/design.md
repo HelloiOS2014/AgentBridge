@@ -294,7 +294,7 @@ agent-bridge help
 | 3 | self-delegation 或 target 不在 allowed |
 | 4 | nested refused |
 | 5 | target CLI not ready |
-| 6 | storage quota |
+| 6 | ~~storage quota~~（由 TTL 清理取代配额强制；保留未使用） |
 
 ### 6.5 环境变量
 
@@ -306,7 +306,8 @@ agent-bridge help
 | `AGENT_BRIDGE_ALLOW_UNSCOPED` | 调试委派无 host |
 | `AGENT_BRIDGE_STATE_DIR` | 状态根 |
 | `AGENT_BRIDGE_<TARGET>_BIN` | 如 `AGENT_BRIDGE_CLAUDE_BIN` |
-| 兼容旧名 | `CLAUDE_COMPANION_*` / `ANTIGRAVITY_COMPANION_*`（迁移期） |
+| `AGENT_BRIDGE_ENV_ALLOWLIST` | 逗号分隔，追加到目标 CLI env 白名单（见 §11.5） |
+| 兼容旧名 | `CLAUDE_COMPANION_*` / `ANTIGRAVITY_COMPANION_*`（迁移期，新名优先；到期移除，见 §12） |
 
 ---
 
@@ -368,7 +369,7 @@ Core 对 `plan|review|adversarial-review` 与只读 `rescue`：
 
 **不得**根据 Target 输出的 plan 文本自动加 `--write`。
 
-并发：`rescue --write` V1 **不**做跨 job 锁；skill 要求干净 git 或明确接受风险。V2 可选 worktree。
+`rescue --write`（Antigravity 目标）在 **git worktree** 中执行：`git worktree add <tmp> -b agent-bridge-write-<ts>`（从当前仓库派生），目标 CLI 以 worktree 为 cwd 运行，主工作区不被污染。**产出语义：** 改动保留在 worktree/分支供审阅，结果报告 worktree 路径与改动文件；**不自动 commit/push、不自动清理 worktree**——合并/丢弃由用户决定。非 git 目录/无 git 时回退直接运行。不做跨 job 锁；skill 要求干净 git 或明确接受风险。
 
 ### 8.2 Review 目标
 
@@ -612,19 +613,21 @@ agent-bridge install --host grok --targets claude,antigravity --apply
 | 危险 flag 黑名单 | ✅ |
 | 状态按 host 分桶 | ✅ |
 | 不自动 commit/push | ✅ |
-| env 继承 | 文档警告；V1.1 可做 allowlist |
+| env allowlist（§11.5 落地） | ✅ 继承层白名单（默认放行集 PATH/HOME/TERM/LANG/SHELL/USER/LOGNAME 等 + `AGENT_BRIDGE_*` + `AGENT_BRIDGE_ENV_ALLOWLIST` 追加）；`req.env` 显式层透传 |
 | 密钥不进 prompt | ✅ skill |
 
 ---
 
 ## 12. 迁移
 
-| 项 | 策略 |
-|----|------|
-| 代码 | 抽 codex-agent-bridge Claude/Agy lib → Core + adapters |
-| Codex Target | 新建；L1/L2 先，L3 参考 codex-plugin-cc |
-| 旧 marketplace | README 指向本仓；兼容 env 1–2 版本 |
-| 用户 job 状态 | 新布局；不强制迁旧 job |
+| 项 | 策略 | 状态 |
+|----|------|------|
+| 代码 | 抽 codex-agent-bridge Claude/Agy lib → Core + adapters | ✅ 已落地 |
+| Codex Target | L1/L2 已落地；L3 app-server 分期 | ✅ L1/L2 |
+| 发行面 | **marketplace 为唯一入口**（§5.1 npm 前提收窄：npm 不再是安装前提）；`agent-bridge install` 为统一补充通道（自动化/无 UI/批量 targets），不替代 marketplace | ✅ 成文（Phase 5） |
+| 旧 env 名 | `CLAUDE_COMPANION_*` / `ANTIGRAVITY_COMPANION_*` 保留一个迁移期（新名 `AGENT_BRIDGE_*` 优先）；到期移除 | ✅ 成文（Phase 5） |
+| 旧 job 状态 | **不强制迁移**：新 job 落新布局（§8.4），旧布局 job 保留可查；`cleanup` 按需清理 | ✅ 成文 |
+| env 继承安全 | allowlist：默认放行集 + `AGENT_BRIDGE_ENV_ALLOWLIST`（§11.5），防 API 密钥/敏感 env 泄漏进目标 agent 上下文 | ✅ 已落地（Phase 5） |
 
 ---
 

@@ -300,6 +300,9 @@ async function main() {
       }, asJson);
       return;
     }
+    // No env: the adapter builds the child env from the allowlist-filtered
+    // inherited layer (+ NESTED marker), so the host's full env — including
+    // other agents' API keys — never reaches the target agent context.
     const result = await runDelegation({
       host: gate.host,
       target,
@@ -307,8 +310,7 @@ async function main() {
       prompt: flags.prompt ?? rest.join(" "),
       model: flags.model,
       write: flags.write,
-      cwd: flags.cwd || process.cwd(),
-      env: process.env
+      cwd: flags.cwd || process.cwd()
     });
     const code =
       result.status === "completed"

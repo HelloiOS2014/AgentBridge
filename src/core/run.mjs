@@ -145,13 +145,16 @@ export async function runDelegation(req) {
   const useWorkspaceProbe = !write && target !== "antigravity";
   const before = useWorkspaceProbe ? await gitFingerprint(cwd, env) : null;
 
+  // Only the caller's explicit env layer reaches the adapter. Callers that
+  // pass no env (CLI path) let the adapter filter the inherited process.env
+  // layer via the allowlist — never the full caller env.
   const result = await RUNNERS[target]({
     kind,
     write,
     prompt,
     cwd,
     model: req.model,
-    env
+    env: req.env
   });
 
   let probe = null;
@@ -182,6 +185,7 @@ export async function runDelegation(req) {
     sessionId: result.sessionId,
     write,
     touchedFiles: result.touchedFiles ?? probe?.touchedFiles ?? [],
+    worktree: result.worktree ?? null,
     capabilities: caps,
     metadata: {
       host,

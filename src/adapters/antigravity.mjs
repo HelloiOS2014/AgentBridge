@@ -1,12 +1,15 @@
 import fs from "node:fs";
 import path from "node:path";
 import { assertNoForbiddenFlags } from "../core/safety.mjs";
+import { buildTargetEnv } from "../core/env-allowlist.mjs";
 import { binaryAvailable, runCommand } from "../core/process.mjs";
 import {
   collectGitTouchedFiles,
   isolationMetadata,
   prepareIsolatedWorkspace,
-  removeIsolatedWorkspace
+  prepareWriteWorktree,
+  removeIsolatedWorkspace,
+  worktreeMetadata
 } from "../core/workspace-isolation.mjs";
 
 export function resolveAgyBin(options = {}) {
@@ -125,6 +128,23 @@ function detectAgyRuntimeError(result) {
   return matched ? combined.match(matched)?.[0] ?? "Antigravity runtime error" : null;
 }
 
+function summarizeAgyResult(result) {
+  const runtimeError = detectAgyRuntimeError(result);
+  const parsed = parseAgyJson(result.stdout);
+  const envelopeError =
+    parsed && parsed.status && parsed.status !== "SUCCESS" ? String(parsed.error ?? parsed.status) : null;
+  const output =
+    typeof parsed?.response === "string" ? parsed.response
+    : parsed?.result ?? parsed?.output ?? parsed?.text ?? result.stdout;
+  return {
+    runtimeError,
+    envelopeError,
+    output,
+    sessionId: parsed?.conversation_id ?? parsed?.session_id ?? parsed?.sessionId ?? null,
+    usage: parsed?.usage ?? null
+  };
+}
+
 /**
  * @param {{
  *   kind: string,
@@ -140,11 +160,7 @@ export async function runAntigravity(req) {
   const write = Boolean(req.write);
   const agyBin = resolveAgyBin({ env: req.env });
   const printTimeout = req.timeoutMs ? `${Math.ceil(req.timeoutMs / 60000)}m` : undefined;
-  const env = {
-    ...process.env,
-    ...(req.env ?? {}),
-    AGENT_BRIDGE_NESTED: "1"
-  };
+  const env = buildTargetEnv(req.env);
 
   if (write) {
     if (req.resume) {
@@ -152,35 +168,51 @@ export async function runAntigravity(req) {
         "Antigravity read-only→write: use --write without --resume for a fresh write-capable run"
       );
     }
-    const args = buildAgyArgs({ write: true, kind: req.kind, prompt: req.prompt, printTimeout });
+    // Write is an authorized path: run in a git worktree so the main
+    // workspace is not polluted. Changes stay in the worktree/branch for
+    // review; no auto commit/push, no auto cleanup. Non-git dirs fall back
+    // to running directly in the real workspace.
+    const worktree = await prepareWriteWorktree(req.cwd, { env });
+    const runCwd = worktree ? worktree.worktreeCwd : req.cwd;
+    const writePrompt = worktree
+      ? [
+          "AgentBridge Antigravity worktree context:",
+          `- Original workspace: ${worktree.originalCwd}`,
+          `- Worktree: ${worktree.worktreePath} (branch ${worktree.branch})`,
+          "- Changes stay in this worktree for review; do not commit or push.",
+          "",
+          req.prompt
+        ].join("\n")
+      : req.prompt;
+    const args = buildAgyArgs({ write: true, kind: req.kind, prompt: writePrompt, printTimeout });
     const result = await runCommand(agyBin, args, {
-      cwd: req.cwd,
+      cwd: runCwd,
       env,
       timeoutMs: req.timeoutMs
     });
-    const runtimeError = detectAgyRuntimeError(result);
-    const parsed = parseAgyJson(result.stdout);
-    const envelopeError =
-      parsed && parsed.status && parsed.status !== "SUCCESS" ? String(parsed.error ?? parsed.status) : null;
-    const output =
-      typeof parsed?.response === "string" ? parsed.response
-      : parsed?.result ?? parsed?.output ?? parsed?.text ?? result.stdout;
+    const summary = summarizeAgyResult(result);
+    const touchedFiles = worktree
+      ? await collectGitTouchedFiles(worktree.worktreePath, { env })
+      : [];
     const ok =
-      result.status === 0 && !result.error && !result.timedOut && !runtimeError && !envelopeError;
+      result.status === 0 && !result.error && !result.timedOut && !summary.runtimeError && !summary.envelopeError;
     return {
       ok,
-      output,
+      output: summary.output,
       rawOutput: result.stdout,
       stderr: result.stderr,
-      sessionId: parsed?.conversation_id ?? parsed?.session_id ?? parsed?.sessionId ?? null,
+      sessionId: summary.sessionId,
       args,
       agyBin,
-      isolation: null,
-      touchedFiles: [],
-      usage: parsed?.usage ?? null,
+      isolation: worktree ? worktreeMetadata(worktree, touchedFiles) : null,
+      worktree: worktree
+        ? { path: worktree.worktreePath, branch: worktree.branch, cwd: worktree.worktreeCwd }
+        : null,
+      touchedFiles,
+      usage: summary.usage,
       error:
-        envelopeError ||
-        runtimeError ||
+        summary.envelopeError ||
+        summary.runtimeError ||
         (result.error ? result.error.message : result.timedOut ? "timed out" : null)
     };
   }
@@ -206,22 +238,16 @@ export async function runAntigravity(req) {
       env,
       includeIgnored: true
     });
-    const runtimeError = detectAgyRuntimeError(result);
-    const parsed = parseAgyJson(result.stdout);
-    const envelopeError =
-      parsed && parsed.status && parsed.status !== "SUCCESS" ? String(parsed.error ?? parsed.status) : null;
-    const output =
-      typeof parsed?.response === "string" ? parsed.response
-      : parsed?.result ?? parsed?.output ?? parsed?.text ?? result.stdout;
+    const summary = summarizeAgyResult(result);
     const probeFail = touchedFiles.length > 0;
     const ok =
-      result.status === 0 && !result.error && !result.timedOut && !runtimeError && !envelopeError && !probeFail;
+      result.status === 0 && !result.error && !result.timedOut && !summary.runtimeError && !summary.envelopeError && !probeFail;
     return {
       ok,
-      output,
+      output: summary.output,
       rawOutput: result.stdout,
       stderr: result.stderr,
-      sessionId: parsed?.conversation_id ?? parsed?.session_id ?? parsed?.sessionId ?? null,
+      sessionId: summary.sessionId,
       args,
       agyBin,
       isolation: isolationMetadata(isolation, {
@@ -229,11 +255,11 @@ export async function runAntigravity(req) {
         readOnlyViolation: probeFail
       }),
       touchedFiles,
-      usage: parsed?.usage ?? null,
+      usage: summary.usage,
       error: probeFail
         ? `Antigravity modified isolated workspace: ${touchedFiles.join(", ")}`
-        : envelopeError ||
-          runtimeError ||
+        : summary.envelopeError ||
+          summary.runtimeError ||
           (result.error ? result.error.message : result.timedOut ? "timed out" : null)
     };
   } finally {

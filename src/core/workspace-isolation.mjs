@@ -254,6 +254,54 @@ export async function collectGitTouchedFiles(cwd, options = {}) {
     .sort((left, right) => left.localeCompare(right));
 }
 
+/**
+ * Write variant of isolation: run the target CLI inside a git worktree
+ * derived from the current repo. Changes stay in the worktree/branch for
+ * review — no auto commit/push, no auto cleanup (user decides to merge or
+ * discard). Returns null (caller falls back to running in the real dir)
+ * when cwd is not inside a git repo with a HEAD.
+ */
+export async function prepareWriteWorktree(cwd, options = {}) {
+  const originalCwd = normalizePath(cwd);
+  const repoRoot = await getRepoRoot(originalCwd, options);
+  if (!repoRoot || !(await hasHead(repoRoot, options))) {
+    return null;
+  }
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "agent-bridge-write-"));
+  try {
+    const worktreePath = path.join(tempRoot, "worktree");
+    const branch = `agent-bridge-write-${Date.now()}`;
+    await runCheckedGit(repoRoot, ["worktree", "add", "--quiet", "-b", branch, worktreePath], options);
+    const relativeCwd = path.relative(repoRoot, originalCwd);
+    const worktreeCwd = relativeCwd ? path.resolve(worktreePath, relativeCwd) : worktreePath;
+    await fs.mkdir(worktreeCwd, { recursive: true });
+    return {
+      kind: "git-worktree",
+      originalCwd,
+      originalRepoRoot: repoRoot,
+      worktreePath,
+      worktreeCwd,
+      branch
+    };
+  } catch (error) {
+    await fs.rm(tempRoot, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+export function worktreeMetadata(worktree, touchedFiles = []) {
+  return {
+    antigravityWorktree: {
+      kind: worktree.kind,
+      originalCwd: worktree.originalCwd,
+      originalRepoRoot: worktree.originalRepoRoot,
+      worktreePath: worktree.worktreePath,
+      branch: worktree.branch,
+      touchedFiles
+    }
+  };
+}
+
 export async function prepareIsolatedWorkspace(cwd, options = {}) {
   const originalCwd = normalizePath(cwd);
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "antigravity-companion-readonly-"));
