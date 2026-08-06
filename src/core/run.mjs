@@ -180,6 +180,7 @@ export async function runDelegation(req) {
     sessionId: result.sessionId,
     write,
     touchedFiles: result.touchedFiles ?? probe?.touchedFiles ?? [],
+    worktree: result.worktree ?? null,
     capabilities: caps,
     metadata: {
       host,
