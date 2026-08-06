@@ -305,7 +305,46 @@ async function main() {
         },
         { host, target, cwd: flags.cwd || process.cwd(), env: process.env }
       );
-      emit({ status: "running", jobId }, asJson);
+      if (!flags.wait) {
+        emit({ status: "running", jobId }, asJson);
+      }
+      if (flags.wait) {
+        const timeoutMs =
+          Number(process.env.AGENT_BRIDGE_WAIT_TIMEOUT_MS) > 0
+            ? Number(process.env.AGENT_BRIDGE_WAIT_TIMEOUT_MS)
+            : 10 * 60 * 1000;
+        const deadline = Date.now() + timeoutMs;
+        let finalJob = null;
+        while (Date.now() < deadline) {
+          const found = lookupJob(jobId);
+          if (found && !found.missing && !found.corrupt && found.job?.status !== "running") {
+            finalJob = found.job;
+            break;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+        if (!finalJob) {
+          fail(EXIT.FAIL, {
+            errorCode: "wait_timeout",
+            errorMessage: `Timed out after ${Math.round(timeoutMs / 1000)}s waiting for job ${jobId}`,
+            jobId,
+            kind: command === "adversarial-review" ? "adversarial-review" : command,
+            target,
+            host: gate.host ?? "unknown"
+          }, asJson);
+          return;
+        }
+        const code =
+          finalJob.status === "completed"
+            ? EXIT.OK
+            : finalJob.errorCode === "not_ready"
+              ? EXIT.NOT_READY
+              : finalJob.errorCode === "usage"
+                ? EXIT.USAGE
+                : EXIT.FAIL;
+        emit(finalJob, true);
+        process.exit(code);
+      }
       process.exit(EXIT.OK);
     }
     const result = await runDelegation({
