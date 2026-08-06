@@ -31,8 +31,9 @@ describe("antigravity adapter", () => {
     assert.equal(s.ready, true);
   });
 
-  it("plan with isolation + fake agy", async () => {
+  it("plan with isolation + fake agy", async (t) => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agy-ws-"));
+    t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
     spawnSync("git", ["init"], { cwd: dir, encoding: "utf8" });
     fs.writeFileSync(path.join(dir, "a.txt"), "a\n");
     spawnSync("git", ["add", "."], { cwd: dir });
@@ -53,8 +54,9 @@ describe("antigravity adapter", () => {
     assert.deepEqual(result.touchedFiles, []);
   });
 
-  it("isolation probe fails when agy touches files", async () => {
+  it("isolation probe fails when agy touches files", async (t) => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agy-touch-"));
+    t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
     spawnSync("git", ["init"], { cwd: dir, encoding: "utf8" });
     fs.writeFileSync(path.join(dir, "a.txt"), "a\n");
     spawnSync("git", ["add", "."], { cwd: dir });
@@ -77,9 +79,13 @@ describe("antigravity adapter", () => {
     assert.ok(result.touchedFiles.some((f) => f.includes("evil") || f === "evil.txt"));
   });
 
-  it("runDelegation antigravity plan", async () => {
+  it("runDelegation antigravity plan", async (t) => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-agy-"));
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agy-del-"));
+    t.after(() => {
+      fs.rmSync(home, { recursive: true, force: true });
+      fs.rmSync(dir, { recursive: true, force: true });
+    });
     spawnSync("git", ["init"], { cwd: dir, encoding: "utf8" });
     fs.writeFileSync(path.join(dir, "a.txt"), "a\n");
     spawnSync("git", ["add", "."], { cwd: dir });
@@ -125,13 +131,14 @@ describe("agy headless argv (official docs)", () => {
     assert.ok(buildAgyArgs({ kind: "plan", prompt: "hi" }).includes("--mode"));
     assert.ok(!buildAgyArgs({ kind: "review", prompt: "hi" }).includes("--mode"));
     assert.ok(!buildAgyArgs({ kind: "rescue", prompt: "hi" }).includes("--mode"));
+    assert.ok(!buildAgyArgs({ kind: "adversarial-review", prompt: "hi" }).includes("--mode"));
     assert.ok(!buildAgyArgs({ prompt: "hi" }).includes("--mode"));
   });
 
   it("--print-timeout defaults to 15m, explicit value passes through", () => {
     const args = buildAgyArgs({ prompt: "hi" });
     const i = args.indexOf("--print-timeout");
-    assert.ok(i >= 0);
+    assert.ok(i >= 0, "--print-timeout missing from args");
     assert.equal(args[i + 1], "15m");
     const custom = buildAgyArgs({ printTimeout: "30m", prompt: "hi" });
     assert.equal(custom[custom.indexOf("--print-timeout") + 1], "30m");
@@ -139,8 +146,9 @@ describe("agy headless argv (official docs)", () => {
 });
 
 describe("agy json envelope parsing", () => {
-  function makeGitDir() {
+  function makeGitDir(t) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agy-enc-"));
+    t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
     spawnSync("git", ["init"], { cwd: dir, encoding: "utf8" });
     fs.writeFileSync(path.join(dir, "a.txt"), "a\n");
     spawnSync("git", ["add", "."], { cwd: dir });
@@ -148,8 +156,8 @@ describe("agy json envelope parsing", () => {
     return dir;
   }
 
-  it("extracts response from envelope and reports usage", async () => {
-    const dir = makeGitDir();
+  it("extracts response from envelope and reports usage", async (t) => {
+    const dir = makeGitDir(t);
     const result = await runAntigravity({
       kind: "plan",
       prompt: "plan something",
@@ -159,11 +167,43 @@ describe("agy json envelope parsing", () => {
     assert.equal(result.ok, true);
     assert.match(result.output, /Fake Agy response/);
     assert.ok(result.args.includes("--mode")); // plan kind
+    assert.equal(result.sessionId, "fake-agy-conversation");
     assert.deepEqual(result.usage, { input_tokens: 1, output_tokens: 1 });
   });
 
-  it("kind plan and timeoutMs flow into argv", async () => {
-    const dir = makeGitDir();
+  it("write path parses envelope and reports usage", async (t) => {
+    const dir = makeGitDir(t);
+    const result = await runAntigravity({
+      kind: "plan",
+      write: true,
+      prompt: "write something",
+      cwd: dir,
+      env: { ...process.env, AGENT_BRIDGE_ANTIGRAVITY_BIN: fakeAgy }
+    });
+    assert.equal(result.ok, true);
+    assert.match(result.output, /Fake Agy response/);
+    assert.equal(result.sessionId, "fake-agy-conversation");
+    assert.deepEqual(result.usage, { input_tokens: 1, output_tokens: 1 });
+    assert.equal(result.isolation, null);
+    assert.deepEqual(result.touchedFiles, []);
+    assert.ok(!result.args.includes("--sandbox"));
+  });
+
+  it("write path surfaces envelopeError", async (t) => {
+    const dir = makeGitDir(t);
+    const result = await runAntigravity({
+      write: true,
+      prompt: "write",
+      cwd: dir,
+      env: { ...process.env, AGENT_BRIDGE_ANTIGRAVITY_BIN: fakeAgy, FAKE_AGY_ERROR: "1" }
+    });
+    assert.equal(result.ok, false);
+    assert.match(result.error, /fake agy error envelope/);
+    assert.equal(result.sessionId, "fake-agy-conversation");
+  });
+
+  it("kind plan and timeoutMs flow into argv", async (t) => {
+    const dir = makeGitDir(t);
     const result = await runAntigravity({
       kind: "plan",
       prompt: "plan something",
@@ -175,8 +215,8 @@ describe("agy json envelope parsing", () => {
     assert.equal(result.args[result.args.indexOf("--print-timeout") + 1], "30m");
   });
 
-  it("envelope ERROR with error text fails with errorMessage", async () => {
-    const dir = makeGitDir();
+  it("envelope ERROR with error text fails with errorMessage", async (t) => {
+    const dir = makeGitDir(t);
     const result = await runAntigravity({
       kind: "review",
       prompt: "review",
