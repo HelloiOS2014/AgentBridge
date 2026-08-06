@@ -38,7 +38,8 @@ export function parseCliArgv(argv) {
     background: false,
     wait: false,
     all: false,
-    cwd: null
+    cwd: null,
+    worker: null
   };
   /** @type {string[]} */
   const positionals = [];
@@ -81,6 +82,13 @@ export function parseCliArgv(argv) {
     }
     if (a === "--wait") {
       flags.wait = true;
+      continue;
+    }
+    if (a === "--worker") {
+      // 内部 flag：后台 worker 用固定 jobId 跑 runDelegation；"" = 缺值
+      const [v, consumed] = valueArg(argv, i);
+      flags.worker = v ?? "";
+      if (consumed) i += 1;
       continue;
     }
     if (a === "--all") {

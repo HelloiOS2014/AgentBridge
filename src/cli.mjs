@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 import fs from "node:fs";
+import { spawn } from "node:child_process";
 import { parseCliArgv, usageText } from "./core/args.mjs";
 import { EXIT } from "./core/exit-codes.mjs";
 import { allowedTargets, isHostId, isTargetId } from "./core/ids.mjs";
 import { runInstall, resolveInstallTargets, runUninstall } from "./core/install.mjs";
-import { cleanupJobs, listJobs, lookupJob, stateReport } from "./core/jobs.mjs";
+import { cleanupJobs, listJobs, lookupJob, newJobId, stateReport } from "./core/jobs.mjs";
 import { runDoctor } from "./core/doctor.mjs";
-import { runDelegation } from "./core/run.mjs";
+import { packageRoot } from "./core/paths.mjs";
+import { runDelegation, persistJob } from "./core/run.mjs";
 import { evaluateGates } from "./core/safety.mjs";
 
 const VERSION = JSON.parse(
@@ -86,6 +88,17 @@ async function main() {
       target: target ?? null
     }, asJson);
     return;
+  }
+
+  if (flags.worker !== null) {
+    if (flags.worker === "") {
+      fail(EXIT.USAGE, { errorCode: "usage", errorMessage: "--worker requires a <job-id>" }, asJson);
+      return;
+    }
+    if (flags.background) {
+      fail(EXIT.USAGE, { errorCode: "usage", errorMessage: "--worker and --background are mutually exclusive" }, asJson);
+      return;
+    }
   }
 
   if (command === "install") {
@@ -270,7 +283,8 @@ async function main() {
       model: flags.model,
       write: flags.write,
       cwd: flags.cwd || process.cwd(),
-      env: process.env
+      env: process.env,
+      jobId: flags.worker !== null ? flags.worker : undefined
     });
     const code =
       result.status === "completed"

@@ -29,7 +29,7 @@ export function jobDir(opts) {
  * @param {object} job
  * @param {object} opts
  */
-function persistJob(job, opts) {
+export function persistJob(job, opts) {
   const dir = jobDir(opts);
   ensureDir(dir);
   const jobFile = path.join(dir, `${job.id}.json`);
@@ -55,7 +55,8 @@ function persistJob(job, opts) {
  *   cwd?: string,
  *   model?: string,
  *   background?: boolean,
- *   env?: NodeJS.ProcessEnv
+ *   env?: NodeJS.ProcessEnv,
+ *   jobId?: string
  * }} req
  */
 export async function runDelegation(req) {
@@ -162,7 +163,8 @@ export async function runDelegation(req) {
   const failedProbe = (probe && !probe.ok && !probe.skipped) || isolationViolation;
   const status = result.ok && !failedProbe ? "completed" : "failed";
   const caps = adapter.capabilities();
-  const id = newJobId();
+  // --worker 固定 jobId：persistJob 覆盖父进程写的 running 记录（同 id 同文件）
+  const id = req.jobId ?? newJobId();
 
   const payload = {
     status,
