@@ -1,0 +1,15 @@
+{
+  "name": "antigravity-bridge",
+  "version": "0.1.0",
+  "description": "Delegate planning, review, and rescue from Codex to local Antigravity CLI via AgentBridge.",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Antigravity Bridge",
+    "shortDescription": "Codex → Antigravity via AgentBridge",
+    "category": "Developer Tools",
+    "defaultPrompt": [
+      "Ask Antigravity to plan this architecture",
+      "Ask Antigravity to review my current changes"
+    ]
+  }
+}

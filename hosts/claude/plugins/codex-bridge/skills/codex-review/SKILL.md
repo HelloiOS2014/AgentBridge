@@ -1,0 +1,45 @@
+---
+name: codex-review
+description: Use when the user wants Codex, through AgentBridge, to review current changes, a branch diff, or adversarially challenge a design for Claude Code.
+---
+
+# Codex Review (AgentBridge)
+
+Delegate **read-only code/design review** to local **Codex**.
+
+## When To Use
+
+- Normal review of working tree / branch changes.
+- Adversarial review when the user wants challenge, alternatives, failure modes (pass focus text in the prompt; use `adversarial-review`).
+
+## When Not To Use
+
+- User only wants Claude Code local review.
+- User asked for fixes/edits (use `codex-rescue` with explicit write intent instead).
+
+## Safety
+
+- Review is **read-only**. Never pass `--write`.
+- No bare/yolo/bypass flags.
+- Do not auto-fix findings.
+
+## Commands
+
+Normal review:
+
+```bash
+"$HOME/.agent-bridge/bin/agent-bridge-claude" codex review --json
+```
+
+Adversarial / focused review:
+
+```bash
+"$HOME/.agent-bridge/bin/agent-bridge-claude" codex adversarial-review --json --prompt "$FOCUS"
+```
+
+Optional: `--cwd "$WORKSPACE"`.
+
+## After The Result
+
+- Present findings first; keep file references and residual risk.
+- Do not start implementing fixes unless the user explicitly requests it.

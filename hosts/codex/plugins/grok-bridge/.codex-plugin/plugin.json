@@ -1,0 +1,15 @@
+{
+  "name": "grok-bridge",
+  "version": "0.1.0",
+  "description": "Delegate planning, review, and rescue from Codex to local Grok Build via AgentBridge.",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Grok Bridge",
+    "shortDescription": "Codex → Grok via AgentBridge",
+    "category": "Developer Tools",
+    "defaultPrompt": [
+      "Ask Grok to plan this change",
+      "Ask Grok to review my current changes"
+    ]
+  }
+}

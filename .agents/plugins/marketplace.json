@@ -1,0 +1,44 @@
+{
+  "name": "agent-bridge-codex",
+  "interface": {
+    "displayName": "Agent Bridge (for Codex)"
+  },
+  "plugins": [
+    {
+      "name": "claude-bridge",
+      "source": {
+        "source": "local",
+        "path": "./hosts/codex/plugins/claude-bridge"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "grok-bridge",
+      "source": {
+        "source": "local",
+        "path": "./hosts/codex/plugins/grok-bridge"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "antigravity-bridge",
+      "source": {
+        "source": "local",
+        "path": "./hosts/codex/plugins/antigravity-bridge"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}
