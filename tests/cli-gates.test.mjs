@@ -44,8 +44,9 @@ describe("cli gates", () => {
     assert.equal(r.status, EXIT.NESTED);
   });
 
-  it("status on corrupt job exits 1 with job_corrupt", () => {
+  it("status on corrupt job exits 1 with job_corrupt", (t) => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-cli-"));
+    t.after(() => fs.rmSync(home, { recursive: true, force: true }));
     const stateDir = path.join(home, "state");
     const id = crypto.randomUUID();
     const jobFile = path.join(stateDir, "codex", "claude", "ws", "jobs", `${id}.json`);

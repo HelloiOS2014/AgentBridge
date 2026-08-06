@@ -10,8 +10,9 @@ import { runInstall } from "../src/core/install.mjs";
 const fakeClaude = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "fixtures/fake-claude.mjs");
 
 describe("doctor", () => {
-  it("flags missing wrapper before install", async () => {
+  it("flags missing wrapper before install", async (t) => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-doc-"));
+    t.after(() => fs.rmSync(home, { recursive: true, force: true }));
     const env = {
       HOME: home,
       USERPROFILE: home,
@@ -22,8 +23,9 @@ describe("doctor", () => {
     assert.ok(report.issues.some((i) => /wrapper/i.test(i) || /install/i.test(i)));
   });
 
-  it("after install wrapper exists", async () => {
+  it("after install wrapper exists", async (t) => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-doc2-"));
+    t.after(() => fs.rmSync(home, { recursive: true, force: true }));
     const env = {
       HOME: home,
       USERPROFILE: home,

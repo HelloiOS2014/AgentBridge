@@ -14,8 +14,9 @@ const cli = path.join(root, "src", "cli.mjs");
 function run(args, env = {}) {
   return spawnSync(process.execPath, [cli, ...args], { encoding: "utf8", env: { ...process.env, ...env } });
 }
-function makeEnv() {
+function makeEnv(t) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-cli-"));
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }));
   return { AGENT_BRIDGE_STATE_DIR: path.join(home, "state"), AGENT_BRIDGE_HOME: home };
 }
 function seedJob(env, host, target, ws, id) {
@@ -26,8 +27,8 @@ function seedJob(env, host, target, ws, id) {
 }
 
 describe("cli surface", () => {
-  it("status finds job via scan without index", () => {
-    const env = makeEnv();
+  it("status finds job via scan without index", (t) => {
+    const env = makeEnv(t);
     const id = crypto.randomUUID();
     seedJob(env, "codex", "claude", "ws", id);
     const r = run(["status", id, "--json"], env);
@@ -35,8 +36,8 @@ describe("cli surface", () => {
     assert.equal(JSON.parse(r.stdout).job.id, id);
   });
 
-  it("status --all lists jobs with filters", () => {
-    const env = makeEnv();
+  it("status --all lists jobs with filters", (t) => {
+    const env = makeEnv(t);
     seedJob(env, "codex", "claude", "ws", crypto.randomUUID());
     seedJob(env, "codex", "grok", "ws", crypto.randomUUID());
     const all = run(["status", "--all", "--json"], env);
@@ -47,8 +48,8 @@ describe("cli surface", () => {
     assert.equal(jobs[0].target, "grok");
   });
 
-  it("storage reports state root", () => {
-    const env = makeEnv();
+  it("storage reports state root", (t) => {
+    const env = makeEnv(t);
     seedJob(env, "codex", "claude", "ws", crypto.randomUUID());
     const r = run(["storage", "--json"], env);
     assert.equal(r.status, EXIT.OK);
@@ -57,14 +58,14 @@ describe("cli surface", () => {
     assert.equal(j.stateRoot, env.AGENT_BRIDGE_STATE_DIR);
   });
 
-  it("cleanup without scope exits 2", () => {
-    const env = makeEnv();
+  it("cleanup without scope exits 2", (t) => {
+    const env = makeEnv(t);
     const r = run(["cleanup", "--json"], env);
     assert.equal(r.status, EXIT.USAGE);
   });
 
-  it("cleanup --all deletes jobs", () => {
-    const env = makeEnv();
+  it("cleanup --all deletes jobs", (t) => {
+    const env = makeEnv(t);
     seedJob(env, "codex", "claude", "ws", crypto.randomUUID());
     const r = run(["cleanup", "--all", "--json"], env);
     assert.equal(r.status, EXIT.OK);
@@ -73,22 +74,22 @@ describe("cli surface", () => {
     assert.equal(JSON.parse(after.stdout).count, 0);
   });
 
-  it("cleanup --target nonsense exits 2", () => {
-    const env = makeEnv();
+  it("cleanup --target nonsense exits 2", (t) => {
+    const env = makeEnv(t);
     const r = run(["cleanup", "--target", "nonsense", "--json"], env);
     assert.equal(r.status, EXIT.USAGE);
     assert.equal(JSON.parse(r.stdout).errorCode, "usage");
   });
 
-  it("status --all --target nonsense exits 2", () => {
-    const env = makeEnv();
+  it("status --all --target nonsense exits 2", (t) => {
+    const env = makeEnv(t);
     const r = run(["status", "--all", "--target", "nonsense", "--json"], env);
     assert.equal(r.status, EXIT.USAGE);
     assert.equal(JSON.parse(r.stdout).errorCode, "usage");
   });
 
-  it("cleanup --host only deletes that host's jobs", () => {
-    const env = makeEnv();
+  it("cleanup --host only deletes that host's jobs", (t) => {
+    const env = makeEnv(t);
     seedJob(env, "codex", "claude", "ws", crypto.randomUUID());
     seedJob(env, "claude", "grok", "ws", crypto.randomUUID());
     const r = run(["cleanup", "--host", "codex", "--json"], env);
@@ -98,8 +99,8 @@ describe("cli surface", () => {
     assert.equal(JSON.parse(after.stdout).count, 1);
   });
 
-  it("install --remove uninstalls host", () => {
-    const env = makeEnv();
+  it("install --remove uninstalls host", (t) => {
+    const env = makeEnv(t);
     env.HOME = env.AGENT_BRIDGE_HOME;
     const home = env.AGENT_BRIDGE_HOME;
     const inst = run(["install", "--host", "codex", "--targets", "claude", "--apply", "--json"], env);
@@ -112,8 +113,8 @@ describe("cli surface", () => {
     assert.equal(fs.existsSync(path.join(home, "bin", "agent-bridge-codex")), false);
   });
 
-  it("install --remove <target> keeps host, removes only that target's skills", () => {
-    const env = makeEnv();
+  it("install --remove <target> keeps host, removes only that target's skills", (t) => {
+    const env = makeEnv(t);
     env.HOME = env.AGENT_BRIDGE_HOME;
     const inst = run(["install", "--host", "codex", "--targets", "claude,grok", "--apply", "--json"], env);
     assert.equal(inst.status, EXIT.OK);
@@ -130,8 +131,8 @@ describe("cli surface", () => {
     assert.deepEqual(lock.targets, ["claude"]); // 重写后去掉 grok
   });
 
-  it("install --remove with invalid target exits 2", () => {
-    const env = makeEnv();
+  it("install --remove with invalid target exits 2", (t) => {
+    const env = makeEnv(t);
     env.HOME = env.AGENT_BRIDGE_HOME;
     const r = run(["install", "--host", "codex", "--remove", "nonsense", "--json"], env);
     assert.equal(r.status, EXIT.USAGE);

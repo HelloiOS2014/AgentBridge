@@ -10,8 +10,9 @@ function git(cwd, args) {
   const r = spawnSync("git", args, { cwd, encoding: "utf8" });
   assert.equal(r.status, 0, `git ${args.join(" ")} failed: ${r.stderr}`);
 }
-function makeRepo() {
+function makeRepo(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "ab-gctx-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   git(root, ["init", "-q"]);
   git(root, ["config", "user.email", "t@t.invalid"]);
   git(root, ["config", "user.name", "T"]);
@@ -19,16 +20,17 @@ function makeRepo() {
 }
 
 describe("collectReviewContext", () => {
-  it("non-git dir reports isGitRepository=false", async () => {
+  it("non-git dir reports isGitRepository=false", async (t) => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ab-nongit-"));
+    t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
     assert.equal(await isGitRepository(dir), false);
     const ctx = await collectReviewContext(dir);
     assert.equal(ctx.isGitRepository, false);
     assert.match(ctx.content, /not a git repository/);
   });
 
-  it("falls back to HEAD~1 baseline without origin/main", async () => {
-    const root = makeRepo();
+  it("falls back to HEAD~1 baseline without origin/main", async (t) => {
+    const root = makeRepo(t);
     fs.writeFileSync(path.join(root, "a.txt"), "1\n");
     git(root, ["add", "."]);
     git(root, ["commit", "-qm", "c1"]);
@@ -42,8 +44,8 @@ describe("collectReviewContext", () => {
     assert.ok(ctx.changedFiles.includes("b.txt"));
   });
 
-  it("captures staged, unstaged and untracked", async () => {
-    const root = makeRepo();
+  it("captures staged, unstaged and untracked", async (t) => {
+    const root = makeRepo(t);
     fs.writeFileSync(path.join(root, "tracked.txt"), "v1\n");
     git(root, ["add", "."]);
     git(root, ["commit", "-qm", "init"]);
@@ -58,8 +60,8 @@ describe("collectReviewContext", () => {
     assert.match(ctx.fullDiff, /untracked.txt/);
   });
 
-  it("truncates diff at maxDiffBytes", async () => {
-    const root = makeRepo();
+  it("truncates diff at maxDiffBytes", async (t) => {
+    const root = makeRepo(t);
     fs.writeFileSync(path.join(root, "big.txt"), "a".repeat(1000) + "\n");
     git(root, ["add", "."]);
     git(root, ["commit", "-qm", "c1"]);
@@ -71,8 +73,8 @@ describe("collectReviewContext", () => {
     assert.ok(ctx.metadata.omittedDiffBytes > 0);
   });
 
-  it("skips binary untracked files", async () => {
-    const root = makeRepo();
+  it("skips binary untracked files", async (t) => {
+    const root = makeRepo(t);
     fs.writeFileSync(path.join(root, "bin.dat"), Buffer.from([0, 1, 2, 3, 0]));
     const ctx = await collectReviewContext(root, { maxDiffBytes: 1 << 20 });
     assert.ok(ctx.metadata.untrackedFiles.skipped.some((s) => s.path === "bin.dat"));
