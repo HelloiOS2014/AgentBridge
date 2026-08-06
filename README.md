@@ -5,19 +5,30 @@
 - 装 marketplace → 想桥谁装谁 → 说一句话即可，**零手动安装命令、无需 npm、无需 export**
 - 所有委派**只读默认**，显式 `--write` 才可写；禁止 bare / yolo / 危险 bypass
 
-## 快速开始（3 步）
+## 快速开始（复制即用）
 
-**1. 装 marketplace + 插件**（按你用的 Host 选一行，想桥谁就装谁的 bridge）
+### Claude Code
 
-| Host | 添加 marketplace | 装插件 |
-|------|------------------|--------|
-| **Claude Code** | `/plugin marketplace add <本仓库>` | `/plugin install antigravity-bridge`（或 `codex-bridge` / `grok-bridge`） |
-| **Codex** | `codex plugin marketplace add <本仓库 git URL> --ref main` | 在 Codex App **Plugins** 里 Add：`claude-bridge` / `grok-bridge` / `antigravity-bridge` |
-| **Grok** | 在 Grok 里添加本仓库的 marketplace（按 Grok 插件机制） | 装需要的 bridge：`claude-bridge` / `codex-bridge` / `antigravity-bridge` |
+```
+/plugin marketplace add https://github.com/HelloiOS2014/AgentBridge
+/plugin install antigravity-bridge@agent-bridge-claude
+```
 
-**2. 直接用**：对话里说「让 Antigravity 看这张图」「让 Codex plan 一下这个重构」
+装完直接说：「让 Antigravity 看这张图」「让 Codex plan 一下这个重构」。
 
-**3. 首次调用自动完成引擎就位**：插件自包含完整引擎，首次触发自举到 `~/.agent-bridge/engine/`（**多 Host 共用一份**，升级自动覆盖）。无需 export 任何变量、无需 npm。
+### Codex
+
+```bash
+codex plugin marketplace add https://github.com/HelloiOS2014/AgentBridge --ref main
+```
+
+然后在 Codex App 的 **Plugins** 里 Add：`antigravity-bridge`（或 `claude-bridge` / `grok-bridge`）。
+
+### Grok
+
+在 Grok 里添加本仓库的 marketplace，装需要的 bridge（`claude-bridge` / `codex-bridge` / `antigravity-bridge`）。
+
+首次调用自动完成引擎就位（插件自包含引擎，自举到 `~/.agent-bridge/engine/`，多 Host 共用一份，升级自动覆盖）。无需 export、无需 npm。
 
 ## 使用示例
 
