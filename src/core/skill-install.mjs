@@ -90,13 +90,4 @@ export function installHostSkills(opts) {
   return { destRoot, wrapperAbs, written, applied: opts.apply };
 }
 
-/**
- * Ensure repo marketplace skill trees exist (for git install from source).
- * Uses $HOME placeholder; installHostSkills rewrites absolute for user dirs.
- */
-export function generateRepoSkills() {
-  // re-export via spawning generate script is fine; keep logic in generate-skills.mjs
-  return { ok: true };
-}
-
 export { allowedTargets, KINDS };

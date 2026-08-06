@@ -175,8 +175,7 @@ function parseClaudeJson(stdout) {
  *   model?: string,
  *   effort?: string,
  *   env?: NodeJS.ProcessEnv,
- *   timeoutMs?: number,
- *   precollectedContext?: string
+ *   timeoutMs?: number
  * }} req
  */
 export async function runClaude(req) {
@@ -189,10 +188,7 @@ export async function runClaude(req) {
     effort: req.effort,
     toolProfile
   });
-  const prompt =
-    req.kind === "review" || req.kind === "adversarial-review"
-      ? [req.prompt, req.precollectedContext].filter(Boolean).join("\n\n")
-      : req.prompt;
+  const prompt = req.prompt;
 
   const env = {
     ...process.env,

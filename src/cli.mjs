@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import fs from "node:fs";
 import { parseCliArgv, usageText } from "./core/args.mjs";
 import { EXIT } from "./core/exit-codes.mjs";
 import { allowedTargets, isHostId, isTargetId } from "./core/ids.mjs";
@@ -7,6 +8,10 @@ import { cleanupJobs, listJobs, lookupJob, stateReport } from "./core/jobs.mjs";
 import { runDoctor } from "./core/doctor.mjs";
 import { runDelegation } from "./core/run.mjs";
 import { evaluateGates } from "./core/safety.mjs";
+
+const VERSION = JSON.parse(
+  fs.readFileSync(new URL("../package.json", import.meta.url), "utf8")
+).version;
 
 /**
  * @param {unknown} payload
@@ -62,7 +67,7 @@ async function main() {
   }
 
   if (command === "version") {
-    emit({ status: "completed", kind: "version", summary: "0.1.0", version: "0.1.0" }, asJson);
+    emit({ status: "completed", kind: "version", summary: VERSION, version: VERSION }, asJson);
     process.exit(EXIT.OK);
   }
 

@@ -551,13 +551,3 @@ export async function collectReviewContext(cwd, options = {}) {
     return { ...context, content: formatContent(context) };
   });
 }
-
-export async function resolveReviewTarget(cwd, options = {}) {
-  const baseline = await resolveBaselineRef(cwd, options);
-  return {
-    mode: baseline.available ? "branch" : "working-tree",
-    baseline,
-    baseRef: baseline.ref,
-    label: baseline.ref ? `diff against ${baseline.ref}` : "working tree diff"
-  };
-}

@@ -68,23 +68,3 @@ export async function binaryAvailable(command, args = ["--version"], options = {
     error: result.error ? result.error.message : null
   };
 }
-
-export function terminateProcessTree(pid, signal = "SIGTERM", options = {}) {
-  if (!Number.isInteger(pid) || pid <= 1) {
-    return false;
-  }
-  try {
-    process.kill(-pid, signal);
-    return true;
-  } catch {
-    if (options.allowPidFallback !== true) {
-      return false;
-    }
-    try {
-      process.kill(pid, signal);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-}

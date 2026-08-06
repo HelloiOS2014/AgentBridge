@@ -1,22 +1,12 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import antigravity from "../adapters/antigravity.mjs";
-import claude from "../adapters/claude.mjs";
-import codex from "../adapters/codex.mjs";
-import grok from "../adapters/grok.mjs";
+import { ADAPTERS, RUNNERS } from "../adapters/index.mjs";
 import { collectReviewContext } from "./git-context.mjs";
 import { newJobId, registerJob } from "./jobs.mjs";
 import { ensureDir, stateRoot } from "./paths.mjs";
 import { composePlanPrompt, composeRescuePrompt, composeReviewPrompt } from "./prompts.mjs";
 import { compareFingerprints, gitFingerprint } from "./write-probe.mjs";
-
-const ADAPTERS = {
-  claude,
-  antigravity,
-  grok,
-  codex
-};
 
 /**
  * @param {string} cwd
@@ -53,26 +43,6 @@ function persistJob(job, opts) {
     env: opts.env
   });
   return jobFile;
-}
-
-/**
- * @param {string} target
- * @param {object} req
- */
-async function invokeAdapter(target, req) {
-  if (target === "claude") {
-    return claude.runClaude(req);
-  }
-  if (target === "antigravity") {
-    return antigravity.runAntigravity(req);
-  }
-  if (target === "grok") {
-    return grok.runGrok(req);
-  }
-  if (target === "codex") {
-    return codex.runCodex(req);
-  }
-  throw new Error(`no runner for ${target}`);
 }
 
 /**
@@ -173,7 +143,7 @@ export async function runDelegation(req) {
   const useWorkspaceProbe = !write && target !== "antigravity";
   const before = useWorkspaceProbe ? await gitFingerprint(cwd, env) : null;
 
-  const result = await invokeAdapter(target, {
+  const result = await RUNNERS[target]({
     kind,
     write,
     prompt,

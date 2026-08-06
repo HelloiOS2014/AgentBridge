@@ -1,15 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
-import antigravity from "../adapters/antigravity.mjs";
-import claude from "../adapters/claude.mjs";
-import codex from "../adapters/codex.mjs";
-import grok from "../adapters/grok.mjs";
+import { ADAPTERS } from "../adapters/index.mjs";
 import { allowedTargets, HOST_IDS, isHostId } from "./ids.mjs";
 import { readHostLock } from "./install.mjs";
 import { agentBridgeHome, hostWrapperPath } from "./paths.mjs";
 import { userSkillsRoot } from "./skill-install.mjs";
-
-const ADAPTERS = { claude, antigravity, grok, codex };
 
 /**
  * @param {{ host?: string | null, env?: NodeJS.ProcessEnv, cwd?: string }} opts
