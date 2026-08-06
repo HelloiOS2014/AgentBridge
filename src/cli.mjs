@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { parseCliArgv, usageText } from "./core/args.mjs";
 import { EXIT } from "./core/exit-codes.mjs";
-import { allowedTargets, isHostId } from "./core/ids.mjs";
+import { allowedTargets, isHostId, isTargetId } from "./core/ids.mjs";
 import { runInstall, resolveInstallTargets, runUninstall } from "./core/install.mjs";
 import { cleanupJobs, listJobs, lookupJob, stateReport } from "./core/jobs.mjs";
 import { runDoctor } from "./core/doctor.mjs";
@@ -104,7 +104,15 @@ async function main() {
         process.exit(EXIT.OK);
       }
       if (flags.remove !== null && !flags.targets) {
-        const result = runUninstall(flags.host, process.env, flags.remove || null);
+        const removeTarget = flags.remove || null;
+        if (removeTarget !== null && !isTargetId(removeTarget)) {
+          fail(EXIT.USAGE, {
+            errorCode: "usage",
+            errorMessage: `Invalid --remove target: ${removeTarget}`
+          }, asJson);
+          return;
+        }
+        const result = runUninstall(flags.host, process.env, removeTarget);
         emit(
           {
             status: "completed",

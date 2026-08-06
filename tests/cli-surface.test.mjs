@@ -86,4 +86,30 @@ describe("cli surface", () => {
     assert.equal(fs.existsSync(path.join(home, "hosts", "codex.lock.json")), false);
     assert.equal(fs.existsSync(path.join(home, "bin", "agent-bridge-codex")), false);
   });
+
+  it("install --remove <target> keeps host, removes only that target's skills", () => {
+    const env = makeEnv();
+    env.HOME = env.AGENT_BRIDGE_HOME;
+    const inst = run(["install", "--host", "codex", "--targets", "claude,grok", "--apply", "--json"], env);
+    assert.equal(inst.status, EXIT.OK);
+    const rem = run(["install", "--host", "codex", "--remove", "grok", "--json"], env);
+    assert.equal(rem.status, EXIT.OK);
+    const skillsRoot = path.join(env.HOME, ".agent-bridge", "skills", "codex");
+    for (const kind of ["plan", "review", "rescue", "result-handling"]) {
+      assert.equal(fs.existsSync(path.join(skillsRoot, `grok-${kind}`)), false);
+    }
+    assert.equal(fs.existsSync(path.join(skillsRoot, "claude-plan")), true); // 其它 target 保留
+    const lockPath = path.join(env.HOME, "hosts", "codex.lock.json");
+    assert.equal(fs.existsSync(lockPath), true); // lock 保留
+    const lock = JSON.parse(fs.readFileSync(lockPath, "utf8"));
+    assert.deepEqual(lock.targets, ["claude"]); // 重写后去掉 grok
+  });
+
+  it("install --remove with invalid target exits 2", () => {
+    const env = makeEnv();
+    env.HOME = env.AGENT_BRIDGE_HOME;
+    const r = run(["install", "--host", "codex", "--remove", "nonsense", "--json"], env);
+    assert.equal(r.status, EXIT.USAGE);
+    assert.equal(JSON.parse(r.stdout).errorCode, "usage");
+  });
 });
