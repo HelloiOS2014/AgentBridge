@@ -172,29 +172,32 @@ claude | codex | grok | agy
 
 ---
 
-## 5. 分发模型（吸收审查 P0-4）— **已定案**
+## 5. 分发模型（吸收审查 P0-4）— **已定案并实现（2026-08）**
 
-### 5.1 选定：**Core 用 npm；Host 发行面多平台兼容**
+### 5.1 选定：**marketplace 插件自足（打包引擎 + 首用自举 + 机器级唯一引擎）**
 
 | 组件 | 安装方式 |
 |------|----------|
-| **Core CLI** | npm 包 `agent-bridge`；入口 `agent-bridge` + 各 host wrapper |
-| **统一安装器** | `agent-bridge install --host X --targets ...`（所有 Host 都能用） |
-| **各平台原生 marketplace / 插件货架** | **同一 monorepo 内按平台格式各出一份**，不是「只能 Codex」 |
+| **货架** | 同一 monorepo 内按平台格式各出一份（Claude/Codex/Grok 的 marketplace 清单），**marketplace 是唯一入口** |
+| **bridge 插件** | 每个 `<target>-bridge` 插件自包含：`src/`（引擎全量，零依赖自包含）+ `bin/agent-bridge-<host>`（静态 wrapper，写死 host lock）+ skills + `version` 标记 |
+| **引擎落位** | skill 首次触发自举：从插件内复制引擎到 `~/.agent-bridge/engine/`、wrapper 到 `~/.agent-bridge/bin/agent-bridge-<host>`（幂等；插件版本升级自动覆盖更新）——**机器级唯一一份引擎，多 host 插件共用** |
+| **统一安装器** | `agent-bridge install --host X --targets ...` 为**补充通道**（自动化 / 无 UI / 批量 targets），不替代 marketplace；npm / `npm link` **不再是前提** |
 
 ### 5.2 拒绝作为默认
 
-- 每 plugin vendor 全量 Core  
+- npm 全局安装作为 marketplace 前提（用户必须另跑安装命令）  
+- `install --apply` 作为用户主流程（两步安装）  
 - 只支持单一 Host 的 marketplace、其它 Host 只能手搓  
 
-开发可用：`AGENT_BRIDGE_DEV_ROOT` 指 monorepo 源码。
+开发可用：`node <repo>/src/cli.mjs --host X …`（引擎即仓库 `src/` 本身）。
 
 ### 5.3 Skills 调用约定
 
 ```bash
-# 正确：wrapper（host 已锁）；路径由 install/marketplace 生成，优先绝对路径
-agent-bridge-codex claude plan --json --prompt "..."
+# 正确：wrapper（host 已锁，自举生成，固定路径）
+"$HOME/.agent-bridge/bin/agent-bridge-claude" codex plan --json --prompt "..."
 
+# 自举段（skill 文案内嵌）：wrapper/引擎缺失或插件版本更新时，从插件内复制（幂等）
 # 开发：
 node "$AGENT_BRIDGE_DEV_ROOT/src/cli.mjs" --host codex claude plan ...
 ```
@@ -213,7 +216,7 @@ node "$AGENT_BRIDGE_DEV_ROOT/src/cli.mjs" --host codex claude plan ...
 
 1. **兼容 = 多格式并列**，不是把所有人塞进 Codex 的 `.agents` 清单里（Claude/Grok 读不懂那一套也正常）。  
 2. **每一套货架只含「别人」**（allowed_targets），CI 分别校验。  
-3. **plugin/skill 只调 Core wrapper**，不 vendor 整份 `src/`。  
+3. **插件打包引擎（自举源），机器只落一份**：`src/` 全量进插件，skill 首用自举到 `~/.agent-bridge/engine/`；多 host 插件版本不一致时以「最新触发者」覆盖（自愈收敛）。`check-manifest` 强制插件内 `src/` 与根 `src/` 一致（文件清单 + sha256），防副本漂移。  
 4. `agent-bridge install` 是 **统一补充路径**（自动化、无 UI、批量 targets），**不替代** 各平台原生 marketplace。  
 5. README 分 Host 写安装；用户不会被要求「Claude 用户去 add Codex marketplace」。
 
@@ -227,17 +230,25 @@ node "$AGENT_BRIDGE_DEV_ROOT/src/cli.mjs" --host codex claude plan ...
 # 委派域
 agent-bridge --host <host> <target> <command> [options]
 agent-bridge-<host> <target> <command> [options]     # 等价，host 锁定
+# options: --prompt <text> --cwd <dir> --model <model> --write
+#          --attach <abs-path>（可重复，外部文件进快照/工作区）
+#          --background（detached worker）/ --wait（轮询至完成，配合 --background）
+#          --json
 
 # 元命令（无 target）
 agent-bridge doctor [--host <host>] [--json]
-agent-bridge install --host <host> [--targets a,b] [--list] [--remove a] [--dry-run] [--apply]
+agent-bridge install --host <host> [--targets a,b] [--list] [--remove [target]] [--dry-run] [--apply]
+agent-bridge status|result|cancel <job-id> [--json]
+agent-bridge result <job-id> --full [--json]         # 跳过展示层截断
+agent-bridge status --all [--host <host>] [--target <target>] [--json]
+agent-bridge storage|cleanup [scope opts] [--json]
 agent-bridge help
 ```
 
 `target ∈ {claude,codex,grok,antigravity}`  
 `command ∈ setup|plan|review|adversarial-review|rescue|status|result|cancel|storage|cleanup`
 
-内部：`run-job <job-id>`（skills 不调用）。
+内部：`--worker <job-id>`（后台 worker 内部入口，skills 不调用；与 `--background` 互斥）。
 
 ### 6.2 门禁顺序
 
@@ -375,11 +386,14 @@ Core 对 `plan|review|adversarial-review` 与只读 `rescue`：
 
 `scope`: `auto | working-tree | branch`；截断与 metadata 同 codex-agent-bridge 量级。
 
-### 8.3 Job
+### 8.3 Job（**已实现，Phase 5**）
 
-- `--background` / `--wait` / status / result / cancel  
-- 不默认 timeout（Antigravity CLI 自带 print-timeout 除外，见 §9.4）  
-- 存储配额与 prune 继承现网策略  
+- `--background`：spawn detached worker（自成进程组），父进程写 running 记录（含 pid，唯一写者），立即返回 `{status: "running", jobId}`；worker 用内部 `--worker <job-id>` 跑委派并覆盖最终记录  
+- `--wait`：配合 `--background` 轮询至非 running（500ms 间隔，默认 10min，`AGENT_BRIDGE_WAIT_TIMEOUT_MS`）；单独使用 → usage 错误  
+- `cancel`：按 pid 杀进程组（`terminateProcessTree`），标记 cancelled 前复查仍 running（防竞态）；孤儿 running 记录由 TTL 清理兜底  
+- `status` 轻量（job 状态/summary 等）；`result` 返回完整结构（展示层截断，`--full` 全文）  
+- **截断**：展示层（cli.mjs emit/result 读取）按阈值截断 rendered(16KB)/rawOutput(64KB)，磁盘落盘全量；env `AGENT_BRIDGE_RENDER_LIMIT_KB` / `AGENT_BRIDGE_RAW_LIMIT_KB`  
+- **TTL 清理**：`persistJob` 机会式 `pruneExpiredJobs`（默认 7 天，`AGENT_BRIDGE_JOB_TTL_DAYS`，≤0 禁用；跳过 running 记录）；QUOTA(exit 6) 由 TTL 取代，保持未使用（见 §6.4）  
 
 ### 8.4 状态布局（吸收 P1-4）
 
@@ -651,16 +665,17 @@ npm run check:manifest
 
 ## 14. 分期（修订）
 
-| Phase | 内容 |
-|-------|------|
-| **0** | package、cli 门禁、host lock/wrapper、install 过滤、空发行面、check-manifest |
-| **1** | Core job/state/git/storage + **Claude** adapter + WriteProbe |
-| **2a** | **Antigravity** 迁移 isolation |
-| **2b** | **Grok** adapter（含 MCP 禁用实测） |
-| **2c** | **Codex L1+L2**；零交互实测 |
-| **3** | Codex Host 发行面 + skills |
-| **4** | Grok Host + Claude Host 发行面 |
-| **5** | Codex L3 app-server（可选）、env allowlist、worktree write、迁移说明 |
+| Phase | 内容 | 状态 |
+|-------|------|------|
+| **0** | package、cli 门禁、host lock/wrapper、install 过滤、空发行面、check-manifest | ✅ |
+| **1** | Core job/state/git/storage + **Claude** adapter + WriteProbe | ✅ |
+| **2a** | **Antigravity** 迁移 isolation | ✅ |
+| **2b** | **Grok** adapter（含 MCP 禁用实测） | ✅ |
+| **2c** | **Codex L1+L2**；零交互实测 | ✅ |
+| **3** | Codex Host 发行面 + skills | ✅ |
+| **4** | Grok Host + Claude Host 发行面 | ✅ |
+| **5** | Codex L3 app-server（可选，未做）、env allowlist、worktree write、迁移说明 | ✅（除 L3） |
+| **6** | 回传与存储卫生（截断/status 轻量/TTL）、后台 worker（--background/--wait/cancel）、marketplace 自足（插件打包+自举）、外部文件附件（--attach）、工程卫生 | ✅ 2026-08 交付 |
 
 ---
 

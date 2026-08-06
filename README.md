@@ -80,6 +80,7 @@ Host skills（按平台拆 marketplace，不含 self）
 - [x] **Phase 3**：skill 模板 + generate + install 写用户 skill
 - [x] **Phase 4**：getting-started / 分 Host 安装文档 + doctor + plugin 元数据
 - [x] **Phase 5（worker）**：真后台 worker（`--background` / `--wait` / `cancel` 真实实现）；Codex L3 app-server 未做
+- [x] **回传与存储卫生**：展示层截断（rendered 16KB / rawOutput 64KB，磁盘全量，`result --full` 取全文）、status 轻量、TTL 自动清理（7 天，跳过 running）、skill 摘要优先
 - [x] **硬化收尾**：job 索引原子写 + 扫描兜底、antigravity 忽略条目过滤、死代码清理、git-context 真仓测试
 - [x] **CLI 表面收敛**：storage / cleanup / status --all / install --remove
 - [x] **Phase 5 余项**：`rescue --write` worktree 隔离、env allowlist（design §11.5）、迁移说明（见发行说明）

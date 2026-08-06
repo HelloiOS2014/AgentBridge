@@ -20,7 +20,8 @@
 
 3. **CLI-only（第一期）**
    - 不在 plugin 清单加 MCP 作为核心路径。
-   - 生产路径用 npm 安装的 CLI + wrapper，不依赖被审仓相对路径 scripts。
+   - **生产路径 = marketplace 插件自足**：插件打包完整引擎（`src/`），skill 首用自举到 `~/.agent-bridge/engine/` 与 `~/.agent-bridge/bin/agent-bridge-<host>`（幂等、版本防漂移、机器级唯一引擎）；npm / `npm link` 不是前提；`agent-bridge install` 是补充通道（自动化/批量），不替代 marketplace。
+   - 改引擎后必须重跑 `node scripts/generate-skills.mjs`（插件内 `src/` 副本由 check-manifest 强制与根一致）。
 
 4. **权限**
    - plan/review/adversarial-review 只读 + WriteProbe（或 capabilities 标明 best-effort）。
@@ -35,13 +36,13 @@
    - 改调用方式先改 `design.md` §9 与 argv 单测。
    - Codex：L1 exec → L2 exec review → L3 app-server 分期；主路径不用 dangerously-bypass。
    - Grok 只读必须处理 MCP 残留（见 design §9.3）。
-   - Antigravity 只读保留 isolation+probe。
+   - Antigravity 只读保留 isolation+probe；**永不传 `--model`**（print 模式坏路，实测 5 种取值形式均复现）；prompt 必须是 `-p` 的值（取值型 flag，放 `--` 后或其它 flag 之后会被吞）。
 
 6. **状态**
    - `$STATE/<host>/<target>/<workspace-hash>/`；不自动 commit/push。
 
 7. **发行面**
-   - `npm run check:manifest`；一 Target 一 bridge 包。
+   - `npm run check:manifest`；一 Target 一 bridge 包；断言插件含 src/cli.mjs + wrapper + 自举段 + **插件内 src 与根 src 一致性**（文件清单 + sha256）。
 
 ## 实现偏好
 
