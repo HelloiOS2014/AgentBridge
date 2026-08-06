@@ -113,6 +113,14 @@ design v2 已吸收：Claude/Agy 现网路径、Grok MCP 陷阱、Codex approval
 - [x] isolation + probe（现网）  
 - [ ] print-timeout 与长任务 background  
 
+### Antigravity (agy) 已知事实（2026-08 实测 + 官方文档）
+
+- `--model` 在 print 模式会吞掉用户 prompt（实测 5 种取值形式均复现）——适配器永不传 `--model`；模型跟随 `~/.gemini/antigravity-cli/settings.json` 的 `model` 字段（ID 与显示名均接受）。
+- headless 规范：`-p` + `--output-format json`（信封含 response/status/error/usage）；`--mode plan` 为官方只读调查模式；`--print-timeout` 建议 15m。
+- shell 命令默认 Ask、headless 下 soft-deny（exit 0 空输出）——需 `permissions.allow` 规则（如 `command(ls)`）预放行；或 `toolPermission: proceed-in-sandbox` + `enableTerminalSandbox: on` 走 OS 容器自动运行。
+- `--sandbox` 是终端命令 OS 容器（macOS sandbox-exec），不是执行模式。
+- 产品谱系：Antigravity CLI (agy, Go) / Antigravity IDE (VS Code fork) / Antigravity SDK (Python) 共享 jetski 运行时；Gemini CLI 已于 2026-06 停服。
+
 ---
 
 **附录结束。规范以 design.md v2 为准。**

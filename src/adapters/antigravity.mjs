@@ -47,7 +47,8 @@ export function capabilities() {
     review: "emulated",
     readOnlyGuarantee: "isolation+probe",
     headlessZeroInteractive: true,
-    transports: ["agy-print"]
+    transports: ["agy-print"],
+    modelIgnored: true // agy print 模式 --model 坏路，模型跟随 settings.json
   };
 }
 
