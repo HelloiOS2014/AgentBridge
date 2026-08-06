@@ -248,6 +248,7 @@ export async function collectGitTouchedFiles(cwd, options = {}) {
   return [...new Set(status.split(/\r?\n/)
     .map((line) => line.trimEnd())
     .filter(Boolean)
+    .filter((line) => !line.startsWith("!!")) // 忽略条目不是工作区内容修改
     .map(parseStatusPath)
     .filter(Boolean))]
     .sort((left, right) => left.localeCompare(right));
