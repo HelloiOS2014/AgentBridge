@@ -7,8 +7,9 @@ import { runInstall } from "../src/core/install.mjs";
 import { installHostSkills, userSkillsRoot } from "../src/core/skill-install.mjs";
 
 describe("skill install", () => {
-  it("writes absolute wrapper into user skills", () => {
+  it("writes absolute wrapper into user skills", (t) => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-skills-"));
+    t.after(() => fs.rmSync(home, { recursive: true, force: true }));
     const env = { HOME: home, USERPROFILE: home, AGENT_BRIDGE_HOME: path.join(home, ".agent-bridge") };
     // wrapper must exist path-wise
     const plan = runInstall({ host: "claude", targets: ["codex"], apply: true, env });
@@ -24,8 +25,9 @@ describe("skill install", () => {
     assert.ok(!body.includes("--bare"));
   });
 
-  it("dry-run skills does not write", () => {
+  it("dry-run skills does not write", (t) => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-skills-dry-"));
+    t.after(() => fs.rmSync(home, { recursive: true, force: true }));
     const env = { HOME: home, AGENT_BRIDGE_HOME: path.join(home, ".agent-bridge") };
     const r = installHostSkills({ host: "grok", targets: ["claude"], apply: false, env });
     assert.equal(r.applied, false);

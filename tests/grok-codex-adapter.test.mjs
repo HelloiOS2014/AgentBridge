@@ -37,8 +37,9 @@ describe("grok adapter", () => {
     assert.match(r.output, /Fake Grok/);
   });
 
-  it("runDelegation grok", async () => {
+  it("runDelegation grok", async (t) => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-grok-"));
+    t.after(() => fs.rmSync(home, { recursive: true, force: true }));
     const result = await runDelegation({
       host: "codex",
       target: "grok",
@@ -95,8 +96,9 @@ describe("codex adapter", () => {
     assert.equal(r.transport, "exec");
   });
 
-  it("runDelegation codex review", async () => {
+  it("runDelegation codex review", async (t) => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-codex-"));
+    t.after(() => fs.rmSync(home, { recursive: true, force: true }));
     const result = await runDelegation({
       host: "claude",
       target: "codex",

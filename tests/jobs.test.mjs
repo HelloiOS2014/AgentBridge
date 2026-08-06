@@ -7,8 +7,9 @@ import { cleanupJobs, listJobs, lookupJob, newJobId, pruneExpiredJobs, registerJ
 import { ensureDir } from "../src/core/paths.mjs";
 
 describe("jobs uuid index", () => {
-  it("registers and looks up by id without host", () => {
+  it("registers and looks up by id without host", (t) => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-state-"));
+    t.after(() => fs.rmSync(home, { recursive: true, force: true }));
     const env = { AGENT_BRIDGE_STATE_DIR: path.join(home, "state"), AGENT_BRIDGE_HOME: home };
     const id = newJobId();
     const jobFile = path.join(home, "state", "codex", "claude", "ws", "jobs", `${id}.json`);
@@ -34,8 +35,9 @@ describe("jobs uuid index", () => {
 });
 
 describe("jobs index resilience", () => {
-  function makeEnv() {
+  function makeEnv(t) {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-state-"));
+    t.after(() => fs.rmSync(home, { recursive: true, force: true }));
     return { AGENT_BRIDGE_STATE_DIR: path.join(home, "state"), AGENT_BRIDGE_HOME: home };
   }
   function writeJob(env, id, host, target, ws, extra = {}) {
@@ -45,8 +47,8 @@ describe("jobs index resilience", () => {
     return jobFile;
   }
 
-  it("scan fallback finds job when index is deleted", () => {
-    const env = makeEnv();
+  it("scan fallback finds job when index is deleted", (t) => {
+    const env = makeEnv(t);
     const id = newJobId();
     const jobFile = writeJob(env, id, "codex", "claude", "ws1");
     registerJob({ id, host: "codex", target: "claude", workspaceHash: "ws1", jobFile, env });
@@ -59,8 +61,8 @@ describe("jobs index resilience", () => {
     assert.equal(lookupJob(id, env).job.id, id);
   });
 
-  it("scan fallback survives corrupt index", () => {
-    const env = makeEnv();
+  it("scan fallback survives corrupt index", (t) => {
+    const env = makeEnv(t);
     const id = newJobId();
     writeJob(env, id, "codex", "grok", "ws2");
     fs.writeFileSync(path.join(env.AGENT_BRIDGE_STATE_DIR, "job-index.json"), "{ not json", "utf8");
@@ -69,8 +71,8 @@ describe("jobs index resilience", () => {
     assert.equal(found.meta.target, "grok");
   });
 
-  it("corrupt job file returns corrupt marker, does not throw", () => {
-    const env = makeEnv();
+  it("corrupt job file returns corrupt marker, does not throw", (t) => {
+    const env = makeEnv(t);
     const id = newJobId();
     const jobFile = writeJob(env, id, "claude", "codex", "ws3");
     fs.writeFileSync(jobFile, "{ broken", "utf8");
@@ -79,15 +81,16 @@ describe("jobs index resilience", () => {
     assert.equal(found.corrupt, true);
   });
 
-  it("missing id returns null", () => {
-    const env = makeEnv();
+  it("missing id returns null", (t) => {
+    const env = makeEnv(t);
     assert.equal(lookupJob(newJobId(), env), null);
   });
 });
 
 describe("jobs list / report / cleanup", () => {
-  function makeEnv() {
+  function makeEnv(t) {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-state-"));
+    t.after(() => fs.rmSync(home, { recursive: true, force: true }));
     return { AGENT_BRIDGE_STATE_DIR: path.join(home, "state"), AGENT_BRIDGE_HOME: home };
   }
   function seed(env, host, target, ws, id) {
@@ -97,8 +100,8 @@ describe("jobs list / report / cleanup", () => {
     return jobFile;
   }
 
-  it("listJobs scans across buckets", () => {
-    const env = makeEnv();
+  it("listJobs scans across buckets", (t) => {
+    const env = makeEnv(t);
     seed(env, "codex", "claude", "ws1", newJobId());
     seed(env, "claude", "grok", "ws2", newJobId());
     const jobs = listJobs(env);
@@ -106,8 +109,8 @@ describe("jobs list / report / cleanup", () => {
     assert.ok(jobs.every((j) => j.jobId && j.host && j.target && j.path));
   });
 
-  it("stateReport counts buckets and bytes", () => {
-    const env = makeEnv();
+  it("stateReport counts buckets and bytes", (t) => {
+    const env = makeEnv(t);
     seed(env, "codex", "claude", "ws1", newJobId());
     seed(env, "codex", "claude", "ws1", newJobId());
     const report = stateReport(env);
@@ -116,13 +119,13 @@ describe("jobs list / report / cleanup", () => {
     assert.ok(report.totalBytes > 0);
   });
 
-  it("cleanupJobs requires scope", () => {
-    const env = makeEnv();
+  it("cleanupJobs requires scope", (t) => {
+    const env = makeEnv(t);
     assert.throws(() => cleanupJobs(env, {}), /--all or --host\/--target/);
   });
 
-  it("cleanupJobs --all deletes and rebuilds index", () => {
-    const env = makeEnv();
+  it("cleanupJobs --all deletes and rebuilds index", (t) => {
+    const env = makeEnv(t);
     const id = newJobId();
     const jobFile = seed(env, "codex", "grok", "ws3", id);
     registerJob({ id, host: "codex", target: "grok", workspaceHash: "ws3", jobFile, env });

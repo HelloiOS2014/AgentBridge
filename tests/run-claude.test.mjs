@@ -10,8 +10,9 @@ import { runDelegation } from "../src/core/run.mjs";
 const fakeClaude = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "fixtures/fake-claude.mjs");
 
 describe("runDelegation claude", () => {
-  it("plan completes with fake claude and host lock env", async () => {
+  it("plan completes with fake claude and host lock env", async (t) => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-run-"));
+    t.after(() => fs.rmSync(home, { recursive: true, force: true }));
     const env = {
       ...process.env,
       AGENT_BRIDGE_HOME: home,

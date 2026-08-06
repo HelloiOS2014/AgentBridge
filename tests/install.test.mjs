@@ -20,8 +20,9 @@ describe("resolveInstallTargets", () => {
 });
 
 describe("runInstall", () => {
-  it("dry-run does not write", () => {
+  it("dry-run does not write", (t) => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-home-"));
+    t.after(() => fs.rmSync(home, { recursive: true, force: true }));
     const env = { AGENT_BRIDGE_HOME: home, HOME: home };
     const plan = runInstall({
       host: "codex",
@@ -33,8 +34,9 @@ describe("runInstall", () => {
     assert.equal(fs.existsSync(plan.lockFile), false);
   });
 
-  it("apply writes lock and wrapper", () => {
+  it("apply writes lock and wrapper", (t) => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-home-"));
+    t.after(() => fs.rmSync(home, { recursive: true, force: true }));
     const env = { AGENT_BRIDGE_HOME: home, HOME: home };
     const plan = runInstall({
       host: "codex",
@@ -54,8 +56,9 @@ describe("runInstall", () => {
 });
 
 describe("runUninstall", () => {
-  it("whole-host removes wrapper, lock, and installed skills only", () => {
+  it("whole-host removes wrapper, lock, and installed skills only", (t) => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-home-"));
+    t.after(() => fs.rmSync(home, { recursive: true, force: true }));
     const env = { AGENT_BRIDGE_HOME: home, HOME: home };
     runInstall({ host: "codex", targets: ["claude"], apply: true, env });
     const skillsRoot = path.join(home, ".agent-bridge", "skills", "codex");
@@ -71,8 +74,9 @@ describe("runUninstall", () => {
     assert.equal(fs.existsSync(skillsRoot), true); // 根目录本身保留
   });
 
-  it("target-scoped removes only that target's skill dirs", () => {
+  it("target-scoped removes only that target's skill dirs", (t) => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-home-"));
+    t.after(() => fs.rmSync(home, { recursive: true, force: true }));
     const env = { AGENT_BRIDGE_HOME: home, HOME: home };
     runInstall({ host: "codex", targets: ["claude", "grok"], apply: true, env });
     const skillsRoot = path.join(home, ".agent-bridge", "skills", "codex");

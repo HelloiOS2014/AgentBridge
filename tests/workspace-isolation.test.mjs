@@ -11,8 +11,9 @@ function git(cwd, args) {
   assert.equal(r.status, 0, `git ${args.join(" ")} failed: ${r.stderr}`);
 }
 
-function makeRepo() {
+function makeRepo(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "ab-ws-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   git(root, ["init", "-q"]);
   git(root, ["config", "user.email", "t@t.invalid"]);
   git(root, ["config", "user.name", "T"]);
@@ -20,8 +21,8 @@ function makeRepo() {
 }
 
 describe("collectGitTouchedFiles", () => {
-  it("excludes ignored (!!) entries, keeps modified/untracked", async () => {
-    const root = makeRepo();
+  it("excludes ignored (!!) entries, keeps modified/untracked", async (t) => {
+    const root = makeRepo(t);
     fs.writeFileSync(path.join(root, "tracked.txt"), "v1\n");
     git(root, ["add", "."]);
     git(root, ["commit", "-qm", "init"]);
