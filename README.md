@@ -35,21 +35,20 @@ Host skills（按平台拆 marketplace，不含 self）
     → 本地 CLI headless
 ```
 
-## 用户怎么用（不需要手写 export）
+## 用户怎么用（Marketplace 唯一流程，零手动安装命令）
 
 完整步骤：**[docs/getting-started.md](./docs/getting-started.md)**  
 
 分 Host：  
 [Codex](./docs/install-codex.md) · [Claude](./docs/install-claude.md) · [Grok](./docs/install-grok.md)
 
-```bash
-cd /path/to/AgentBridge && npm link
-agent-bridge install --host codex --targets claude,antigravity --apply
-agent-bridge doctor --host codex
-# 然后在 Codex 对话里：「让 Claude plan …」
+```text
+1. 装 marketplace（.claude-plugin/marketplace.json / .agents/plugins/marketplace.json）
+2. 按需 /plugin install <target>-bridge（想桥谁装谁）
+3. 对话里说「让 Claude plan …」→ 首次调用自动自举 → 即用
 ```
 
-**不需要** `export` 任何变量。wrapper / skill 绝对路径由 install 写好；CLI 自动发现本机 `claude`/`agy`/`grok`/`codex`。
+每个 bridge 插件自包含完整引擎（`src/` + 静态 wrapper + skills + 版本标记）；skill 首次运行把引擎自举到 `~/.agent-bridge/engine/` 与 `~/.agent-bridge/bin/agent-bridge-<host>`（幂等，插件升级自动覆盖更新）。**不需要** `export` 任何变量，不需要 `npm i -g`。CLI 自动发现本机 `claude`/`agy`/`grok`/`codex`。
 
 ## 文档
 
@@ -77,6 +76,8 @@ agent-bridge doctor --host codex
 - [ ] Phase 5（可选）：Codex L3 app-server、真后台 worker
 - [x] **硬化收尾**：job 索引原子写 + 扫描兜底、antigravity 忽略条目过滤、死代码清理、git-context 真仓测试
 - [x] **CLI 表面收敛**：storage / cleanup / status --all / install --remove
+- [x] **Batch 3a marketplace 自足**：插件打包引擎（src+bin+skills+version）、skill 首用自举（幂等、版本防漂移）、check-manifest 引擎一致性断言、docs 重写为 marketplace 唯一流程
+- [x] **Batch 3b 外部文件附件**：`--attach`（可重复）、工作区/隔离快照落位、WriteProbe 顺序约束、只读清理 / write 保留产出
 
 ## 许可
 

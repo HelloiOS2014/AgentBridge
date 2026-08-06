@@ -1,39 +1,35 @@
-# 在 Claude Code 上安装 AgentBridge
+# 在 Claude Code 上安装 AgentBridge（Marketplace）
 
-## 推荐：CLI install
+Marketplace 是唯一安装流程：**装 marketplace → 按需 `/plugin install` → 即用**。无需 `npm i -g`，无需手动安装命令。
 
-```bash
-agent-bridge install --host claude --targets codex,grok,antigravity --apply
-agent-bridge doctor --host claude
-```
+## 1. 添加 marketplace
 
-Skill 写入：`~/.claude/skills/<target>-plan` 等（绝对路径调 wrapper）。
-
-重启 Claude Code 或新开会话以加载 skill。
-
-## Marketplace（可选）
-
-本仓库：
+在 Claude Code 里：
 
 ```text
-.claude-plugin/marketplace.json
+/plugin marketplace add /path/to/AgentBridge
 ```
 
-插件（**无 Claude self**）：`codex-bridge`、`grok-bridge`、`antigravity-bridge`。
+（或仓库 git URL。）
+
+货架（**无 Claude self**）：`codex-bridge`、`grok-bridge`、`antigravity-bridge`。
+
+## 2. 按需安装 bridge 插件
 
 ```text
-/plugin marketplace add <本仓库>
-/plugin install codex-bridge@...
+/plugin install antigravity-bridge
 ```
 
-装 marketplace 后仍建议：
+想用哪个桥就装哪个，例如「让 Codex plan / 让 Grok review / 让 Antigravity 查问题」分别装对应插件。装完重开（或 `/plugin` 面板启用）让 skill 生效。
 
-```bash
-agent-bridge install --host claude --apply
-```
+## 3. 即用（首次自动自举）
+
+直接说：「让 Antigravity 看一下这个架构」。
+
+skill 首次调用会自动把插件内自带的完整引擎复制到 `~/.agent-bridge/engine/` 与 `~/.agent-bridge/bin/agent-bridge-claude`（幂等；引擎带版本标记，插件升级后自动覆盖更新，无感）。无需任何手动安装命令。
 
 ## 对话示例
 
-- Ask Codex to review this branch  
-- Ask Grok to plan the migration  
-- Ask Antigravity to fix the failing test（明确 fix → skill 才可 --write）  
+- Ask Codex to review this branch
+- Ask Grok to plan the migration
+- Ask Antigravity to fix the failing test（明确 fix → skill 才可 `--write`）

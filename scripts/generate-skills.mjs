@@ -1,9 +1,13 @@
 #!/usr/bin/env node
-// Generate Host skill packs from skills-templates into hosts/*/plugins.
+// Generate Host skill packs + self-contained bridge plugin packages from skills-templates.
+// Each <target>-bridge plugin ships: src/ (engine copy), bin/agent-bridge-<host> (static
+// wrapper), skills/, version (package version), package.json, skills-templates/ — so the
+// host marketplace install is fully self-sufficient (skill bootstrap copies engine on first use).
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { allowedTargets } from "../src/core/ids.mjs";
+import { wrapperBody } from "../src/core/install.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const templatesDir = path.join(root, "skills-templates");
@@ -23,18 +27,32 @@ const TARGET_LABEL = {
 
 const KINDS = ["plan", "review", "rescue", "result-handling"];
 
+/** find 根：skill 自举段在每个 host 的插件安装根下定位 <target>-bridge 插件。 */
+const BOOTSTRAP_FIND_ROOT = {
+  codex: "$HOME/.codex",
+  claude: "$HOME/.claude/plugins",
+  grok: "$HOME/.grok"
+};
+
+/** Engine install 目标（与 skill 自举段、wrapper 静态 cliPath 三方一致）。 */
+export const ENGINE_TARGET = {
+  engine: "$HOME/.agent-bridge/engine",
+  wrapper: "$HOME/.agent-bridge/bin/agent-bridge"
+};
+
 /**
  * @param {string} host
+ * @param {string} target
  */
-function pluginRootFor(host, target) {
+export function pluginRootFor(host, target) {
   if (host === "codex") {
     return path.join(root, "hosts/codex/plugins", `${target}-bridge`);
   }
   if (host === "claude") {
     return path.join(root, "hosts/claude/plugins", `${target}-bridge`);
   }
-  // Grok: flat skills under hosts/grok/skills
-  return path.join(root, "hosts/grok");
+  // Grok: 平铺 skills 在 hosts/grok/skills；插件树只放引擎 payload（src/bin/version）
+  return path.join(root, "hosts/grok/plugins", `${target}-bridge`);
 }
 
 /**
@@ -57,6 +75,64 @@ function render(tpl, vars) {
   return tpl.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? "");
 }
 
+/**
+ * skill 自举段（bash）：首次调用把插件内引擎复制到 ~/.agent-bridge/engine 与
+ * ~/.agent-bridge/bin/agent-bridge-<host>。幂等：engine 携带 version 文件，
+ * 与插件内 version 一致即跳过；不一致则整体重装（插件新则覆盖，防更新漂移）。
+ * @param {string} host
+ * @param {string} target
+ */
+export function renderBootstrapBlock(host, target) {
+  const wrapper = `${ENGINE_TARGET.wrapper}-${host}`;
+  const findRoot = BOOTSTRAP_FIND_ROOT[host];
+  const engine = ENGINE_TARGET.engine;
+  return [
+    `# Self-bootstrap: install engine from plugin on first use (idempotent, version-guarded)`,
+    `AB_PLUGIN_VERSION="$(find "${findRoot}" -path "*${target}-bridge*" -name version -type f -not -path "*/.git/*" 2>/dev/null | head -n1)"`,
+    `if [ -n "$AB_PLUGIN_VERSION" ] && { [ ! -x "${wrapper}" ] || [ "$(cat "${engine}/version" 2>/dev/null)" != "$(cat "$AB_PLUGIN_VERSION")" ]; }; then`,
+    `  AB_PLUGIN="$(dirname "$AB_PLUGIN_VERSION")"`,
+    `  rm -rf "${engine}" && mkdir -p "${engine}" "$(dirname "${wrapper}")" && \\`,
+    `  cp -R "$AB_PLUGIN/src" "${engine}/" && cp "$AB_PLUGIN/package.json" "${engine}/" && cp -R "$AB_PLUGIN/skills-templates" "${engine}/" && \\`,
+    `  cp "$AB_PLUGIN/version" "${engine}/version" && cp "$AB_PLUGIN/bin/agent-bridge-${host}" "$(dirname "${wrapper}")/" && \\`,
+    `  chmod +x "${wrapper}"`,
+    `fi`
+  ].join("\n");
+}
+
+/**
+ * 写插件 payload：src（引擎整树）+ bin/agent-bridge-<host>（静态 wrapper）+
+ * version（package version）+ package.json + skills-templates（install-from-engine 用）。
+ * @param {string} host
+ * @param {string} target
+ */
+function writePluginPayload(host, target) {
+  const dir = pluginRootFor(host, target);
+  const version = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")).version;
+
+  fs.rmSync(path.join(dir, "src"), { recursive: true, force: true });
+  fs.cpSync(path.join(root, "src"), path.join(dir, "src"), { recursive: true });
+
+  const binDir = path.join(dir, "bin");
+  fs.mkdirSync(binDir, { recursive: true });
+  const body = wrapperBody(
+    host,
+    `require("node:path").join(require("node:os").homedir(), ".agent-bridge", "engine", "src", "cli.mjs")`,
+    { rawExpression: true }
+  );
+  const bin = path.join(binDir, `agent-bridge-${host}`);
+  fs.writeFileSync(bin, body, { mode: 0o755 });
+  try {
+    fs.chmodSync(bin, 0o755);
+  } catch {
+    // ignore
+  }
+
+  fs.writeFileSync(path.join(dir, "version"), `${version}\n`, "utf8");
+  fs.copyFileSync(path.join(root, "package.json"), path.join(dir, "package.json"));
+  fs.rmSync(path.join(dir, "skills-templates"), { recursive: true, force: true });
+  fs.cpSync(templatesDir, path.join(dir, "skills-templates"), { recursive: true });
+}
+
 function main() {
   const dry = process.argv.includes("--dry-run");
   let count = 0;
@@ -64,9 +140,17 @@ function main() {
   for (const host of ["codex", "claude", "grok"]) {
     const targets = allowedTargets(/** @type {import("../src/core/ids.mjs").HostId} */ (host));
     // default wrapper path (install may rewrite to absolute realpath)
-    const wrapper = `$HOME/.agent-bridge/bin/agent-bridge-${host}`;
+    const wrapper = `${ENGINE_TARGET.wrapper}-${host}`;
 
     for (const target of targets) {
+      const pluginDir = pluginRootFor(host, target);
+      if (!dry) {
+        writePluginPayload(host, target);
+      } else {
+        console.log(`would write plugin ${path.relative(root, pluginDir)}`);
+      }
+      count += 1;
+
       for (const kind of KINDS) {
         const tplPath = path.join(templatesDir, `${kind}.md.tpl`);
         if (!fs.existsSync(tplPath)) {
@@ -78,7 +162,8 @@ function main() {
           HOST_LABEL: HOST_LABEL[host],
           TARGET: target,
           TARGET_LABEL: TARGET_LABEL[target],
-          WRAPPER: wrapper
+          WRAPPER: wrapper,
+          BOOTSTRAP: renderBootstrapBlock(host, target)
         });
         const dir = skillDir(host, target, kind);
         const out = path.join(dir, "SKILL.md");
@@ -92,7 +177,10 @@ function main() {
     }
   }
 
-  console.log(`generate-skills: ${count} skills ${dry ? "(dry-run)" : "written"}`);
+  console.log(`generate-skills: ${count} artifacts ${dry ? "(dry-run)" : "written"}`);
 }
 
-main();
+const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isMain) {
+  main();
+}

@@ -22,6 +22,18 @@ Delegate investigation or **explicitly write-enabled** work to **Grok Build**.
 
 ## Commands
 
+The wrapper and engine self-bootstrap from the grok-bridge plugin on first use (no manual install command).
+
+# Self-bootstrap: install engine from plugin on first use (idempotent, version-guarded)
+AB_PLUGIN_VERSION="$(find "$HOME/.claude/plugins" -path "*grok-bridge*" -name version -type f -not -path "*/.git/*" 2>/dev/null | head -n1)"
+if [ -n "$AB_PLUGIN_VERSION" ] && { [ ! -x "$HOME/.agent-bridge/bin/agent-bridge-claude" ] || [ "$(cat "$HOME/.agent-bridge/engine/version" 2>/dev/null)" != "$(cat "$AB_PLUGIN_VERSION")" ]; }; then
+  AB_PLUGIN="$(dirname "$AB_PLUGIN_VERSION")"
+  rm -rf "$HOME/.agent-bridge/engine" && mkdir -p "$HOME/.agent-bridge/engine" "$(dirname "$HOME/.agent-bridge/bin/agent-bridge-claude")" && \
+  cp -R "$AB_PLUGIN/src" "$HOME/.agent-bridge/engine/" && cp "$AB_PLUGIN/package.json" "$HOME/.agent-bridge/engine/" && cp -R "$AB_PLUGIN/skills-templates" "$HOME/.agent-bridge/engine/" && \
+  cp "$AB_PLUGIN/version" "$HOME/.agent-bridge/engine/version" && cp "$AB_PLUGIN/bin/agent-bridge-claude" "$(dirname "$HOME/.agent-bridge/bin/agent-bridge-claude")/" && \
+  chmod +x "$HOME/.agent-bridge/bin/agent-bridge-claude"
+fi
+
 Read-only investigate:
 
 ```bash
@@ -35,8 +47,10 @@ Write-enabled (explicit user intent only):
 ```
 
 Optional: `--cwd "$WORKSPACE"`, `--model <model>` if user named one.
+If the user gave a file / log / screenshot path to investigate, pass it with `--attach "$FILE"` (absolute path, repeatable).
 
 ## After The Result
 
 - Summarize diagnosis, files touched (if any), verification, remaining risk.
 - If write ran, show what changed; leave commit decisions to the user / Claude Code.
+- On `--write` rescue with attachments, the staged files stay in the workspace (`agent-bridge-attach-<n>-<name>`); report their paths in the result.

@@ -9,11 +9,23 @@ Setup, status, result, and cancel for delegated **Antigravity** jobs.
 
 ## Setup / doctor
 
+The wrapper and engine self-bootstrap from the antigravity-bridge plugin on first use (no manual install command).
+
+# Self-bootstrap: install engine from plugin on first use (idempotent, version-guarded)
+AB_PLUGIN_VERSION="$(find "$HOME/.codex" -path "*antigravity-bridge*" -name version -type f -not -path "*/.git/*" 2>/dev/null | head -n1)"
+if [ -n "$AB_PLUGIN_VERSION" ] && { [ ! -x "$HOME/.agent-bridge/bin/agent-bridge-codex" ] || [ "$(cat "$HOME/.agent-bridge/engine/version" 2>/dev/null)" != "$(cat "$AB_PLUGIN_VERSION")" ]; }; then
+  AB_PLUGIN="$(dirname "$AB_PLUGIN_VERSION")"
+  rm -rf "$HOME/.agent-bridge/engine" && mkdir -p "$HOME/.agent-bridge/engine" "$(dirname "$HOME/.agent-bridge/bin/agent-bridge-codex")" && \
+  cp -R "$AB_PLUGIN/src" "$HOME/.agent-bridge/engine/" && cp "$AB_PLUGIN/package.json" "$HOME/.agent-bridge/engine/" && cp -R "$AB_PLUGIN/skills-templates" "$HOME/.agent-bridge/engine/" && \
+  cp "$AB_PLUGIN/version" "$HOME/.agent-bridge/engine/version" && cp "$AB_PLUGIN/bin/agent-bridge-codex" "$(dirname "$HOME/.agent-bridge/bin/agent-bridge-codex")/" && \
+  chmod +x "$HOME/.agent-bridge/bin/agent-bridge-codex"
+fi
+
 Only when installing, user asks to check setup, or a command reports missing binary / auth:
 
 ```bash
 "$HOME/.agent-bridge/bin/agent-bridge-codex" antigravity setup --json
-agent-bridge doctor --host codex --json
+"$HOME/.agent-bridge/bin/agent-bridge-codex" doctor --host codex --json
 ```
 
 Do not run setup before every delegation.
@@ -23,14 +35,14 @@ Do not run setup before every delegation.
 Jobs return a `jobId` (UUID). Lookup does **not** require host:
 
 ```bash
-agent-bridge status "$JOB_ID" --json
-agent-bridge result "$JOB_ID" --json
-agent-bridge cancel "$JOB_ID" --json
+"$HOME/.agent-bridge/bin/agent-bridge-codex" status "$JOB_ID" --json
+"$HOME/.agent-bridge/bin/agent-bridge-codex" result "$JOB_ID" --json
+"$HOME/.agent-bridge/bin/agent-bridge-codex" cancel "$JOB_ID" --json
 ```
 
 A running job may have empty stdout for a while — keep polling unless the user set a time budget or the job is terminal.
 
 ## Notes
 
-- Wrapper path is created by `agent-bridge install --host codex --apply`.
+- Wrapper path is created by the plugin's self-bootstrap on first use.
 - Users should not need to export environment variables for normal use.
