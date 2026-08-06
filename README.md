@@ -1,21 +1,38 @@
 # AgentBridge
 
-通用本机多 Agent 桥接：**让 Codex / Claude Code / Grok Build 委派任务给彼此，以及 Antigravity CLI**。
+**本机多 Agent 委派桥**：让 Codex、Claude Code、Grok Build 在对话里把 plan / review / rescue 任务委派给彼此，以及 Antigravity CLI。
 
-> 完整方案见 **[docs/design.md](./docs/design.md)**。  
-> 差异矩阵（按文档/现网）：[docs/agent-differences.md](./docs/agent-differences.md)。  
-> 参考（勿整搬）：[codex-agent-bridge](https://github.com/HelloiOS2014/codex-agent-bridge)（Codex→Claude/Agy）；[codex-plugin-cc](https://github.com/openai/codex-plugin-cc)（Claude→Codex，分析见 [docs/reference-codex-plugin-cc.md](./docs/reference-codex-plugin-cc.md)）。
+- 装 marketplace → 想桥谁装谁 → 说一句话即可，**零手动安装命令、无需 npm、无需 export**
+- 所有委派**只读默认**，显式 `--write` 才可写；禁止 bare / yolo / 危险 bypass
 
-## 核心约定
+## 快速开始（3 步）
 
-| 约定 | 说明 |
-|------|------|
-| **禁止自己套自己** | Host 是谁，marketplace / skills **不包含** 再调同一个 agent |
-| **调用方自选安装** | 货架上架多个 Target Bridge，用户只装需要的 |
-| **CLI-only** | 统一 `agent-bridge` 命令；第一期不用 MCP |
-| **安全默认** | plan/review 只读；rescue 默认只读，显式 `--write` 才可写 |
+1. **装 marketplace**：在你用的 Host 里添加本仓库
+   - Claude Code：`/plugin marketplace add <本仓库>` · Codex / Grok 见[分 Host 文档](#分-host-安装)
+2. **按需装插件**：`/plugin install <target>-bridge` —— 只要 Antigravity 就装 `antigravity-bridge`，只要 Grok 就装 `grok-bridge`，想桥谁装谁
+3. **直接用**：对话里说「让 Antigravity 看这张图」「让 Codex plan 一下这个重构」
 
-## Host × Target 矩阵
+首次调用自动完成引擎就位（插件自包含完整引擎，自举到 `~/.agent-bridge/engine/`，**多 Host 共用一份**，升级自动覆盖）。无需 export 任何变量。
+
+## 使用示例
+
+```text
+「让 Codex plan 一下这个重构」        → codex-plan
+「让 Grok review 当前改动」           → grok-review
+「让 Antigravity 查一下这个报错」      → antigravity-rescue（只读诊断）
+「让 Antigravity 修复这个 bug」       → antigravity-rescue --write（显式写意图）
+「分析这张图 …」（附文件路径）        → 自动走附件流程（--attach），只读隔离分析
+```
+
+```bash
+# 也可以直接调 CLI（wrapper 由自举生成，host 已锁定）
+"$HOME/.agent-bridge/bin/agent-bridge-claude" codex plan --json --prompt "重构方案"
+agent-bridge status <job-id> --json        # 查任务（轻量）
+agent-bridge result <job-id> --full        # 取完整结果（默认截断防撑爆上下文）
+agent-bridge --background …                # 后台 worker，status/cancel 跟踪
+```
+
+## 可桥接矩阵
 
 | 你在用 ↓ \ 可桥接到 → | Claude | Codex | Grok | Antigravity |
 |----------------------|:------:|:-----:|:----:|:-----------:|
@@ -23,70 +40,62 @@
 | **Claude Code**      | ❌     | ✅    | ✅   | ✅          |
 | **Grok Build**       | ✅     | ✅    | ❌   | ✅          |
 
-❌ = self，不提供产品入口；Runtime 也会拒绝。
+❌ = self：不提供产品入口，Runtime 也会拒绝。
 
-## 架构（极简）
+## 安全模型
+
+| 机制 | 说明 |
+|------|------|
+| **只读默认** | plan / review / rescue 全部只读（tools 白名单 / sandbox / 隔离快照 + 探针）；改代码必须显式 `--write` |
+| **Host lock** | 委派经写死宿主身份的 wrapper 进入，冒充宿主会被拒绝 |
+| **防递归** | `NESTED` 标记 + self 拒绝（exit 3/4） |
+| **禁危险旗标** | `--bare` / `--yolo` / `--dangerously-bypass-*` 全局禁止 |
+| **防上下文爆炸** | 回传截断（磁盘存全量，`result --full` 取全文）；job 7 天 TTL 自动清理 |
+| **外部文件** | `--attach` 只读复制进隔离快照/工作区，跑完清理（write 任务保留产出） |
+
+## 架构
 
 ```text
-Host skills（按平台拆 marketplace，不含 self）
-    → agent-bridge <target> <command>
-    → Core（job / state / safety）
+Host skills（marketplace 插件，按平台拆、不含 self）
+    → wrapper（host lock）→ agent-bridge CLI
+    → Core（job / state / safety / TTL）
     → Adapter（claude | codex | grok | antigravity）
-    → 本地 CLI headless
+    → 本地 CLI headless（sandbox / 隔离快照）
 ```
 
-## 用户怎么用（Marketplace 唯一流程，零手动安装命令）
+## 分 Host 安装
 
-完整步骤：**[docs/getting-started.md](./docs/getting-started.md)**  
-
-分 Host（**入口：各平台原生 marketplace**，见发行说明）：
-[Codex](./docs/install-codex.md) · [Claude](./docs/install-claude.md) · [Grok](./docs/install-grok.md)
-
-```text
-1. 装 marketplace（.claude-plugin/marketplace.json / .agents/plugins/marketplace.json）
-2. 按需 /plugin install <target>-bridge（想桥谁装谁）
-3. 对话里说「让 Claude plan …」→ 首次调用自动自举 → 即用
-```
-
-每个 bridge 插件自包含完整引擎（`src/` + 静态 wrapper + skills + 版本标记）；skill 首次运行把引擎自举到 `~/.agent-bridge/engine/` 与 `~/.agent-bridge/bin/agent-bridge-<host>`（幂等，插件升级自动覆盖更新）。**不需要** `export` 任何变量，不需要 `npm i -g`。CLI 自动发现本机 `claude`/`agy`/`grok`/`codex`。
-
-## 发行说明（Phase 5）
-
-- **入口：原生 marketplace 唯一通道**。从所在 Host 的 marketplace 添加本仓库并安装需要的 target bridge（`hosts/*` 货架）；**npm / `npm link` 不再是前提**。`agent-bridge install` 是统一补充通道（自动化 / 无 UI / 批量 targets），不替代 marketplace。
-- **旧环境变量兼容期**：`CLAUDE_COMPANION_*` / `ANTIGRAVITY_COMPANION_*` 在迁移期继续可用（新名 `AGENT_BRIDGE_*` 优先），迁移期结束后移除。
-- **job 状态不强制迁移**：旧布局 job 不自动迁移；新 job 落新布局，旧状态保留可查，`cleanup` 按需清理。
+| Host | 文档 |
+|------|------|
+| Codex | [docs/install-codex.md](./docs/install-codex.md) |
+| Claude Code | [docs/install-claude.md](./docs/install-claude.md) |
+| Grok Build | [docs/install-grok.md](./docs/install-grok.md) |
 
 ## 文档
 
 | 文档 | 说明 |
 |------|------|
-| [docs/getting-started.md](./docs/getting-started.md) | **用户快速开始** |
-| [docs/install-codex.md](./docs/install-codex.md) | Codex 安装 |
-| [docs/install-claude.md](./docs/install-claude.md) | Claude Code 安装 |
-| [docs/install-grok.md](./docs/install-grok.md) | Grok Build 安装 |
-| [docs/design.md](./docs/design.md) | 设计真源 v2 |
-| [docs/design-review-v3.md](./docs/design-review-v3.md) | 终审 |
-| [docs/reference-codex-plugin-cc.md](./docs/reference-codex-plugin-cc.md) | 官方插件参考边界 |
+| [docs/getting-started.md](./docs/getting-started.md) | 快速开始 |
+| [docs/design.md](./docs/design.md) | 设计真源（架构 / 安全模型 / 契约） |
+| [docs/agent-differences.md](./docs/agent-differences.md) | 各 Agent CLI 差异与已知坑（如 agy `--model` 坏路） |
+| [docs/reference-codex-plugin-cc.md](./docs/reference-codex-plugin-cc.md) | 参考实现分析（勿整搬） |
 
-## 仓库状态
+## 兼容与迁移
 
-- [x] 设计 v1 + 审查 + 差异调研 + codex-plugin-cc 参考
-- [x] **设计 v2** + v3 终审
-- [x] **Phase 0**：CLI 门禁、host lock/wrapper、install、manifest、UUID job 索引
-- [x] **Phase 1**：Claude adapter + WriteProbe + job 落盘
-- [x] **Phase 2a**：Antigravity adapter
-- [x] **Phase 2b**：Grok adapter（read-only tools + sandbox + deny MCP/Edit）
-- [x] **Phase 2c**：Codex L1 `exec` + L2 `exec review`（approval never，无 dangerously-bypass）
-- [x] **Phase 3**：skill 模板 + generate + install 写用户 skill
-- [x] **Phase 4**：getting-started / 分 Host 安装文档 + doctor + plugin 元数据
-- [x] **Phase 5（worker）**：真后台 worker（`--background` / `--wait` / `cancel` 真实实现）；Codex L3 app-server 未做
-- [x] **回传与存储卫生**：展示层截断（rendered 16KB / rawOutput 64KB，磁盘全量，`result --full` 取全文）、status 轻量、TTL 自动清理（7 天，跳过 running）、skill 摘要优先
-- [x] **硬化收尾**：job 索引原子写 + 扫描兜底、antigravity 忽略条目过滤、死代码清理、git-context 真仓测试
-- [x] **CLI 表面收敛**：storage / cleanup / status --all / install --remove
-- [x] **Phase 5 余项**：`rescue --write` worktree 隔离、env allowlist（design §11.5）、迁移说明（见发行说明）
-- [x] **marketplace 自足**：插件打包引擎（src+bin+skills+version）、skill 首用自举（幂等、版本防漂移）、check-manifest 引擎一致性断言、docs 重写为 marketplace 唯一流程
-- [x] **外部文件附件**：`--attach`（可重复）、工作区/隔离快照落位、WriteProbe 顺序约束、只读清理 / write 保留产出
+- **入口**：marketplace 唯一通道；`agent-bridge install` 是补充通道（自动化 / 批量），不替代 marketplace
+- **旧环境变量**：`CLAUDE_COMPANION_*` / `ANTIGRAVITY_COMPANION_*` 迁移期继续可用（`AGENT_BRIDGE_*` 优先）
+- **job 状态**：旧布局不自动迁移，可查可 `cleanup`
+
+## 开发
+
+```bash
+npm test                 # 128 个用例（fake CLI 驱动，无需真实凭证）
+npm run check:manifest   # 发行面校验（无 self、插件引擎一致性）
+npm run generate:skills  # 改模板/引擎后重新生成插件产物
+```
+
+状态：Phase 0-5 全部交付（除可选 Codex L3 app-server）；硬化、回传卫生、marketplace 自足、附件、真机验收完成。
 
 ## 许可
 
-拟 MIT（与参考实现一致，实现时写入 `package.json` / `LICENSE`）。
+MIT
