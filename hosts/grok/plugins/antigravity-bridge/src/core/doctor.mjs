@@ -73,6 +73,11 @@ export async function runDoctor(opts = {}) {
   }
 
   const ready = issues.length === 0;
+  const note = `Users do not need to export env vars. Install creates wrapper + skills with absolute paths.${
+    "antigravity" in targets
+      ? " Antigravity: agy print 模式需 -p 值形式 + settings 权限规则，工具类任务依赖模型完成度；见 docs/agent-differences.md"
+      : ""
+  }`;
   return {
     status: "completed",
     kind: "doctor",
@@ -87,6 +92,6 @@ export async function runDoctor(opts = {}) {
     targets,
     issues,
     ready: host ? ready : undefined,
-    note: "Users do not need to export env vars. Install creates wrapper + skills with absolute paths."
+    note
   };
 }

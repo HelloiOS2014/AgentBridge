@@ -79,7 +79,6 @@ describe("antigravity adapter", () => {
     assert.ok(result.touchedFiles.some((f) => f.includes("evil") || f === "evil.txt"));
   });
 
-<<<<<<< HEAD
   it("rescue --write runs in a git worktree; main workspace untouched", async () => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-wt-"));
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agy-write-"));
