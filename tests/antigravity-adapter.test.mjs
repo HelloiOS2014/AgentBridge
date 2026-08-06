@@ -14,7 +14,7 @@ describe("antigravity adapter", () => {
   it("buildAgyArgs sandbox for read, not for write", () => {
     const readArgs = buildAgyArgs({ write: false, prompt: "hi" });
     assert.ok(readArgs.includes("--sandbox"));
-    assert.ok(readArgs.includes("--print"));
+    assert.ok(readArgs.includes("-p"));
     const writeArgs = buildAgyArgs({ write: true, prompt: "hi" });
     assert.ok(!writeArgs.includes("--sandbox"));
   });
@@ -108,6 +108,13 @@ describe("antigravity adapter", () => {
 });
 
 describe("agy headless argv (official docs)", () => {
+  it("prompt is the -p value, no -- separator", () => {
+    const args = buildAgyArgs({ prompt: "hi" });
+    assert.equal(args[0], "-p");
+    assert.equal(args[1], "hi");
+    assert.ok(!args.includes("--"));
+  });
+
   it("always emits --output-format json", () => {
     const args = buildAgyArgs({ prompt: "hi" });
     assert.ok(args.includes("--output-format"));

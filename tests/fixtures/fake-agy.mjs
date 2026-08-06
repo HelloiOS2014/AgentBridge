@@ -41,8 +41,8 @@ if (process.env.FAKE_AGY_AUTH_TIMEOUT) {
   process.exit(0);
 }
 
-const terminatorIndex = args.indexOf("--");
-const prompt = terminatorIndex >= 0 ? args.slice(terminatorIndex + 1).join(" ") : "";
+const pIdx = args.indexOf("-p");
+const prompt = pIdx >= 0 ? args[pIdx + 1] ?? "" : "";
 
 console.log(JSON.stringify({
   conversation_id: "fake-agy-conversation",

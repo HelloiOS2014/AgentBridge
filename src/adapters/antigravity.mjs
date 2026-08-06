@@ -56,13 +56,14 @@ export function capabilities() {
  * @param {{ kind?: string, write?: boolean, printTimeout?: string, prompt: string }} options
  * 注意：不接受 model——agy print 模式传 --model 会吞掉用户 prompt（CLI bug），
  * 模型只能跟随 agy settings.json 的默认配置。
+ * prompt 必须是 -p 的值（紧跟其后），放在 flag 之前——放后面会被 -p 吞掉（CLI bug）。
  * 官方 headless 规范（antigravity.google/docs/cli/headless）：
  * - --output-format json 返回信封（response/status/error/usage）
  * - kind=plan 用 --mode plan（只读调查 + 执行提纲）
  * - --print-timeout 默认 5m，自动化建议 15m
  */
 export function buildAgyArgs(options = {}) {
-  const args = ["--print", "--output-format", "json"];
+  const args = ["-p", options.prompt ?? ""];
   if (!options.write) {
     args.push("--sandbox");
   }
@@ -70,8 +71,9 @@ export function buildAgyArgs(options = {}) {
     args.push("--mode", "plan");
   }
   args.push("--print-timeout", options.printTimeout ?? "15m");
-  args.push("--", options.prompt ?? "");
-  assertNoForbiddenFlags(args.slice(0, -1));
+  args.push("--output-format", "json");
+  // prompt 是 -p 的值（index 1），不是 flag——只检查其余位置
+  assertNoForbiddenFlags([...args.slice(0, 1), ...args.slice(2)]);
   return args;
 }
 
