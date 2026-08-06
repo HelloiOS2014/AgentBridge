@@ -19,6 +19,11 @@ describe("antigravity adapter", () => {
     assert.ok(!writeArgs.includes("--sandbox"));
   });
 
+  it("buildAgyArgs ignores model (agy print mode breaks on --model)", () => {
+    const args = buildAgyArgs({ model: "gemini-3.6-flash-high", write: false, prompt: "hi" });
+    assert.ok(!args.includes("--model"));
+  });
+
   it("setup ready with fake agy", async () => {
     const s = await setup({
       env: { ...process.env, AGENT_BRIDGE_ANTIGRAVITY_BIN: fakeAgy }

@@ -52,15 +52,14 @@ export function capabilities() {
 }
 
 /**
- * @param {{ write?: boolean, model?: string, printTimeout?: string, prompt: string }} options
+ * @param {{ write?: boolean, printTimeout?: string, prompt: string }} options
+ * 注意：不接受 model——agy print 模式传 --model 会吞掉用户 prompt（CLI bug），
+ * 模型只能跟随 agy settings.json 的默认配置。
  */
 export function buildAgyArgs(options = {}) {
   const args = ["--print"];
   if (!options.write) {
     args.push("--sandbox");
-  }
-  if (options.model) {
-    args.push("--model", options.model);
   }
   if (options.printTimeout) {
     args.push("--print-timeout", String(options.printTimeout));
@@ -144,7 +143,7 @@ export async function runAntigravity(req) {
         "Antigravity read-only→write: use --write without --resume for a fresh write-capable run"
       );
     }
-    const args = buildAgyArgs({ write: true, model: req.model, prompt: req.prompt });
+    const args = buildAgyArgs({ write: true, prompt: req.prompt });
     const result = await runCommand(agyBin, args, {
       cwd: req.cwd,
       env,
@@ -179,7 +178,7 @@ export async function runAntigravity(req) {
       "",
       req.prompt
     ].join("\n");
-    const args = buildAgyArgs({ write: false, model: req.model, prompt: isolatedPrompt });
+    const args = buildAgyArgs({ write: false, prompt: isolatedPrompt });
     const result = await runCommand(agyBin, args, {
       cwd: isolation.isolatedCwd,
       env,
