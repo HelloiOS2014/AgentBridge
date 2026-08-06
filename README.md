@@ -30,6 +30,20 @@ codex plugin marketplace add https://github.com/HelloiOS2014/AgentBridge --ref m
 
 首次调用自动完成引擎就位（插件自包含引擎，自举到 `~/.agent-bridge/engine/`，多 Host 共用一份，升级自动覆盖）。无需 export、无需 npm。
 
+## 更新
+
+**用户侧（装过一次，之后升级零手动命令）**：
+
+| Host | 刷新 marketplace | 更新插件 |
+|------|------------------|----------|
+| **Claude Code** | `/plugin marketplace update` | `/plugin install <target>-bridge@agent-bridge-claude`（或 /plugin 界面更新） |
+| **Codex** | 重跑 `codex plugin marketplace add <url> --ref main` | Plugins 面板更新 |
+| **Grok** | 按其插件机制刷新 | 同左 |
+
+更新插件后，**下次触发 skill 自动完成引擎升级**：自举检测插件版本 ≠ 引擎版本 → 自动覆盖 `~/.agent-bridge/engine/` 与 wrapper。无需任何手动命令。
+
+**发布侧（维护者）**：改引擎/模板 → **bump `package.json` version**（自举按版本决定是否覆盖用户引擎；不 bump 用户机器不更新，`generate:skills` 会强制拒绝）→ `npm run generate:skills` → `npm run check:manifest` → commit + push。
+
 ## 使用示例
 
 ```text
@@ -99,10 +113,10 @@ Host skills（marketplace 插件，按平台拆、不含 self）
 ```bash
 npm test                 # 128 个用例（fake CLI 驱动，无需真实凭证）
 npm run check:manifest   # 发行面校验（无 self、插件引擎一致性）
-npm run generate:skills  # 改模板/引擎后重新生成插件产物
+npm run generate:skills  # 改模板/引擎后重新生成插件产物（版本闸门：未 bump 拒绝）
 ```
 
-发布更新：改引擎/模板 → **bump `package.json` version**（自举按版本决定是否覆盖用户引擎，不 bump 用户机器不更新）→ `generate:skills`（未 bump 会拒绝）→ commit + push → 用户侧刷新 marketplace、更新插件即可，引擎由自举自动升级。
+发布更新流程见上方「更新」节。
 
 状态：Phase 0-5 全部交付（除可选 Codex L3 app-server）；硬化、回传卫生、marketplace 自足、附件、真机验收完成。
 
