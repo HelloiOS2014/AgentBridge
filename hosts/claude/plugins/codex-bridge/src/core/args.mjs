@@ -38,7 +38,9 @@ export function parseCliArgv(argv) {
     background: false,
     wait: false,
     all: false,
-    cwd: null
+    cwd: null,
+    /** @type {string[]} */
+    attachments: []
   };
   /** @type {string[]} */
   const positionals = [];
@@ -145,6 +147,19 @@ export function parseCliArgv(argv) {
       flags.model = a.slice("--model=".length);
       continue;
     }
+    if (a === "--attach") {
+      const [v, consumed] = valueArg(argv, i);
+      if (!consumed) {
+        throw new Error("--attach requires an absolute file path");
+      }
+      flags.attachments.push(v);
+      i += 1;
+      continue;
+    }
+    if (a.startsWith("--attach=")) {
+      flags.attachments.push(a.slice("--attach=".length));
+      continue;
+    }
     if (a.startsWith("-")) {
       throw new Error(`Unknown option: ${a}`);
     }
@@ -200,6 +215,7 @@ export function usageText() {
     "  agent-bridge install --host <host> [--targets a,b] [--list] [--remove [target]] [--apply] [--dry-run]",
     "  agent-bridge help",
     "",
+    "Options: --json --prompt <text> --model <model> --cwd <dir> --write --attach <abs-path> (repeatable)",
     "Hosts: codex | claude | grok",
     "Targets: claude | codex | grok | antigravity",
     "Commands: setup plan review adversarial-review rescue status result cancel storage cleanup"

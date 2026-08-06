@@ -2,6 +2,13 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { ADAPTERS, RUNNERS } from "../adapters/index.mjs";
+import {
+  attachmentPromptNote,
+  placeWorkspaceAttachments,
+  removeWorkspaceAttachments,
+  resolveAttachments,
+  rewritePromptPaths
+} from "./attachments.mjs";
 import { collectReviewContext } from "./git-context.mjs";
 import { newJobId, registerJob } from "./jobs.mjs";
 import { ensureDir, stateRoot } from "./paths.mjs";
@@ -55,6 +62,7 @@ function persistJob(job, opts) {
  *   cwd?: string,
  *   model?: string,
  *   background?: boolean,
+ *   attachments?: string[],
  *   env?: NodeJS.ProcessEnv
  * }} req
  */
@@ -139,23 +147,62 @@ export async function runDelegation(req) {
   }
 
   const write = kind === "rescue" && Boolean(req.write);
+
+  // 附件：antigravity 只读 → 由 adapter 放进隔离快照（随快照删除）；
+  // 其余（含 antigravity --write）→ 复制进真实工作区 untracked 区。
+  let attachments = [];
+  try {
+    attachments = resolveAttachments(req.attachments ?? [], env);
+  } catch (error) {
+    return {
+      status: "failed",
+      kind,
+      target,
+      host,
+      errorCode: "usage",
+      errorMessage: error instanceof Error ? error.message : String(error),
+      summary: "invalid attachment"
+    };
+  }
+  const snapshotAttachments = target === "antigravity" && !write ? attachments : [];
+  const workspaceAttachments = snapshotAttachments.length ? [] : attachments;
+
+  // WriteProbe 顺序约束：附件放置必须在 gitFingerprint(before) 之前、
+  // 附件清理必须在 gitFingerprint(after) 之后（防止附件本身被记成篡改）。
+  let placed = [];
+  let promptOut = prompt;
+  if (workspaceAttachments.length) {
+    placed = placeWorkspaceAttachments(workspaceAttachments, cwd);
+    promptOut = rewritePromptPaths(prompt, placed);
+    promptOut += attachmentPromptNote(placed);
+  }
+
   // Workspace WriteProbe for tool/sandbox targets; Antigravity uses isolation probe inside adapter.
   const useWorkspaceProbe = !write && target !== "antigravity";
   const before = useWorkspaceProbe ? await gitFingerprint(cwd, env) : null;
 
-  const result = await RUNNERS[target]({
-    kind,
-    write,
-    prompt,
-    cwd,
-    model: req.model,
-    env
-  });
-
+  let result;
   let probe = null;
-  if (useWorkspaceProbe && before) {
-    const after = await gitFingerprint(cwd, env);
-    probe = compareFingerprints({ before, after });
+  try {
+    result = await RUNNERS[target]({
+      kind,
+      write,
+      prompt: promptOut,
+      cwd,
+      model: req.model,
+      env,
+      attachments: snapshotAttachments.length ? snapshotAttachments : undefined
+    });
+
+    if (useWorkspaceProbe && before) {
+      const after = await gitFingerprint(cwd, env);
+      probe = compareFingerprints({ before, after });
+    }
+  } finally {
+    // 只读任务：委派后删除（失败也删）；write 任务保留（是产出）
+    if (!write && placed.length) {
+      removeWorkspaceAttachments(placed);
+    }
   }
 
   const isolationViolation = target === "antigravity" && !write && (result.touchedFiles?.length ?? 0) > 0;
@@ -189,6 +236,15 @@ export async function runDelegation(req) {
       args: result.args,
       review: reviewMeta,
       isolation: result.isolation ?? null,
+      attachments: attachments.map((a, i) => ({
+        name: a.name,
+        originalPath: a.originalPath,
+        size: a.size,
+        placedPath:
+          result.isolation?.antigravityIsolation?.attachments?.[i]?.placedPath ??
+          placed[i]?.placedPath ??
+          null
+      })),
       storage: { truncated: false }
     },
     errorCode: failedProbe

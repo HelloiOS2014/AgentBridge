@@ -270,6 +270,7 @@ async function main() {
       model: flags.model,
       write: flags.write,
       cwd: flags.cwd || process.cwd(),
+      attachments: flags.attachments,
       env: process.env
     });
     const code =

@@ -133,7 +133,8 @@ function detectAgyRuntimeError(result) {
  *   cwd: string,
  *   model?: string,
  *   env?: NodeJS.ProcessEnv,
- *   timeoutMs?: number
+ *   timeoutMs?: number,
+ *   attachments?: Array<{ name: string, originalPath: string, size: number }>
  * }} req
  */
 export async function runAntigravity(req) {
@@ -186,15 +187,27 @@ export async function runAntigravity(req) {
   }
 
   // read-only: isolation + sandbox + touchedFiles probe
-  const isolation = await prepareIsolatedWorkspace(req.cwd, { env });
+  // 附件在 prepareIsolatedWorkspace 里于基线提交前落位（随快照删除）
+  const isolation = await prepareIsolatedWorkspace(req.cwd, {
+    env,
+    attachments: req.attachments
+  });
   try {
+    const attachLines = (isolation.attachments ?? []).map(
+      (a) => `- Attachment: ${a.originalPath} -> ${a.placedPath}`
+    );
+    let userPrompt = req.prompt;
+    for (const a of isolation.attachments ?? []) {
+      userPrompt = userPrompt.split(a.originalPath).join(a.placedPath);
+    }
     const isolatedPrompt = [
       "AgentBridge Antigravity safety context:",
       `- Original workspace: ${isolation.originalCwd}`,
       `- Execution workspace: ${isolation.isolatedCwd}`,
       "- Disposable snapshot; analysis only. Do not edit files.",
+      ...attachLines,
       "",
-      req.prompt
+      userPrompt
     ].join("\n");
     const args = buildAgyArgs({ write: false, kind: req.kind, prompt: isolatedPrompt, printTimeout });
     const result = await runCommand(agyBin, args, {

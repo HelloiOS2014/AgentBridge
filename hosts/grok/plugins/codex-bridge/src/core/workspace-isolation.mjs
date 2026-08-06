@@ -160,6 +160,28 @@ export function assertIsolatedSnapshotRoot(snapshotRoot, originalRepoRoot) {
   }
 }
 
+/**
+ * 附件落位到隔离快照（基线提交之前 → 被计入 baseline，只读审计不误报）。
+ * 统一放 <snapshotRoot>/attachments/agent-bridge-attach-<n>-<name>。
+ * @param {string} snapshotRoot
+ * @param {Array<{ name: string, originalPath: string, size: number }>} attachments
+ */
+export async function placeSnapshotAttachments(snapshotRoot, attachments) {
+  if (!attachments?.length) {
+    return [];
+  }
+  const dir = path.join(snapshotRoot, "attachments");
+  await fs.mkdir(dir, { recursive: true });
+  const placed = [];
+  for (let i = 0; i < attachments.length; i += 1) {
+    const a = attachments[i];
+    const placedPath = path.join(dir, `agent-bridge-attach-${i}-${a.name}`);
+    await fs.copyFile(a.originalPath, placedPath);
+    placed.push({ ...a, placedPath });
+  }
+  return placed;
+}
+
 async function commitIsolationBaseline(snapshotRoot, options = {}) {
   assertIsolatedSnapshotRoot(snapshotRoot, options.originalRepoRoot);
   await runCheckedGit(snapshotRoot, ["config", "user.email", "antigravity-bridge@example.invalid"], options);
@@ -173,6 +195,7 @@ async function prepareGitSnapshot(originalCwd, repoRoot, tempRoot, options = {})
   await runCheckedGit(path.dirname(snapshotRoot), ["clone", "--quiet", "--no-local", repoRoot, snapshotRoot], options);
   await applyTrackedDiff(repoRoot, snapshotRoot, options);
   await copyUntrackedFiles(repoRoot, snapshotRoot, options);
+  const attachments = await placeSnapshotAttachments(snapshotRoot, options.attachments);
   await commitIsolationBaseline(snapshotRoot, { ...options, originalRepoRoot: repoRoot });
 
   const relativeCwd = path.relative(repoRoot, originalCwd);
@@ -185,15 +208,17 @@ async function prepareGitSnapshot(originalCwd, repoRoot, tempRoot, options = {})
     originalRepoRoot: repoRoot,
     snapshotRoot,
     isolatedCwd,
-    relativeCwd
+    relativeCwd,
+    attachments
   };
 }
 
-async function prepareDirectorySnapshot(originalCwd, tempRoot) {
+async function prepareDirectorySnapshot(originalCwd, tempRoot, options = {}) {
   const snapshotRoot = path.join(tempRoot, "workspace");
   await fs.mkdir(snapshotRoot, { recursive: true });
   await copyDirectorySnapshot(originalCwd, snapshotRoot);
   await runCheckedGit(snapshotRoot, ["init", "-q"]);
+  const attachments = await placeSnapshotAttachments(snapshotRoot, options.attachments);
   await commitIsolationBaseline(snapshotRoot);
   return {
     kind: "directory-snapshot",
@@ -201,14 +226,16 @@ async function prepareDirectorySnapshot(originalCwd, tempRoot) {
     originalRepoRoot: null,
     snapshotRoot,
     isolatedCwd: snapshotRoot,
-    relativeCwd: ""
+    relativeCwd: "",
+    attachments
   };
 }
 
-async function prepareScratchWorkspace(originalCwd, tempRoot) {
+async function prepareScratchWorkspace(originalCwd, tempRoot, options = {}) {
   const snapshotRoot = path.join(tempRoot, "scratch");
   await fs.mkdir(snapshotRoot, { recursive: true });
   await runCheckedGit(snapshotRoot, ["init", "-q"]);
+  const attachments = await placeSnapshotAttachments(snapshotRoot, options.attachments);
   await commitIsolationBaseline(snapshotRoot);
   return {
     kind: "scratch",
@@ -216,7 +243,8 @@ async function prepareScratchWorkspace(originalCwd, tempRoot) {
     originalRepoRoot: null,
     snapshotRoot,
     isolatedCwd: snapshotRoot,
-    relativeCwd: ""
+    relativeCwd: "",
+    attachments
   };
 }
 
@@ -261,7 +289,7 @@ export async function prepareIsolatedWorkspace(cwd, options = {}) {
 
   try {
     if (!includeWorkspace) {
-      return await prepareScratchWorkspace(originalCwd, tempRoot);
+      return await prepareScratchWorkspace(originalCwd, tempRoot, options);
     }
 
     const repoRoot = await getRepoRoot(originalCwd, options);
@@ -269,7 +297,7 @@ export async function prepareIsolatedWorkspace(cwd, options = {}) {
       return await prepareGitSnapshot(originalCwd, repoRoot, tempRoot, options);
     }
 
-    return await prepareDirectorySnapshot(originalCwd, tempRoot);
+    return await prepareDirectorySnapshot(originalCwd, tempRoot, options);
   } catch (error) {
     await fs.rm(tempRoot, { recursive: true, force: true });
     throw error;
@@ -292,6 +320,7 @@ export function isolationMetadata(isolation, audit = {}) {
       originalRepoRoot: isolation.originalRepoRoot,
       isolatedCwd: isolation.isolatedCwd,
       snapshotRoot: isolation.snapshotRoot,
+      attachments: isolation.attachments ?? [],
       readOnlyViolation: Boolean(audit.readOnlyViolation),
       touchedFiles: audit.touchedFiles ?? []
     }
