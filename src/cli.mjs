@@ -255,6 +255,13 @@ async function main() {
   }
 
   if (["plan", "review", "adversarial-review", "rescue", "setup"].includes(command)) {
+    if (flags.background || flags.wait) {
+      fail(EXIT.USAGE, {
+        errorCode: "not_implemented",
+        errorMessage: "--background/--wait are Phase 5 (background workers); run foreground for now"
+      }, asJson);
+      return;
+    }
     const result = await runDelegation({
       host: gate.host,
       target,
@@ -262,7 +269,6 @@ async function main() {
       prompt: flags.prompt ?? rest.join(" "),
       write: flags.write,
       cwd: flags.cwd || process.cwd(),
-      background: flags.background,
       env: process.env
     });
     const code =

@@ -38,23 +38,20 @@ export async function runDoctor(opts = {}) {
     };
   }
 
-  const targets = {};
+  let targets;
   const list = host ? allowedTargets(host) : ["claude", "codex", "grok", "antigravity"];
-  for (const t of list) {
+  const entries = list.map(async (t) => {
     const adapter = ADAPTERS[t];
     if (!adapter) {
-      targets[t] = { ready: false, message: "no adapter" };
-      continue;
+      return [t, { ready: false, message: "no adapter" }];
     }
     try {
-      targets[t] = await adapter.setup({ cwd, env, timeoutMs: 8000 });
+      return [t, await adapter.setup({ cwd, env, timeoutMs: 8000 })];
     } catch (error) {
-      targets[t] = {
-        ready: false,
-        message: error instanceof Error ? error.message : String(error)
-      };
+      return [t, { ready: false, message: error instanceof Error ? error.message : String(error) }];
     }
-  }
+  });
+  targets = Object.fromEntries(await Promise.all(entries));
 
   const issues = [];
   if (host) {

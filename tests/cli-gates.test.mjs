@@ -30,30 +30,16 @@ describe("cli gates", () => {
   });
 
   it("missing lock exit 2", () => {
-    const r = run(["claude", "plan", "--json", "--prompt", "x"], {
-      AGENT_BRIDGE_LOCKED_HOST: "",
-      env: undefined
-    });
-    // clear lock
-    const r2 = spawnSync(process.execPath, [cli, "claude", "plan", "--json", "--prompt", "x"], {
-      encoding: "utf8",
-      env: { ...process.env, AGENT_BRIDGE_LOCKED_HOST: undefined }
-    });
-    // ensure unset
     const env = { ...process.env };
     delete env.AGENT_BRIDGE_LOCKED_HOST;
-    const r3 = spawnSync(process.execPath, [cli, "claude", "plan", "--json", "--prompt", "x"], {
-      encoding: "utf8",
-      env
-    });
-    assert.equal(r3.status, EXIT.USAGE);
+    const r = run(["claude", "plan", "--json", "--prompt", "x"], env);
+    assert.equal(r.status, EXIT.USAGE);
   });
 
   it("nested exit 4", () => {
-    const env = { ...process.env, AGENT_BRIDGE_NESTED: "1", AGENT_BRIDGE_LOCKED_HOST: "codex" };
-    const r = spawnSync(process.execPath, [cli, "claude", "plan", "--json"], {
-      encoding: "utf8",
-      env
+    const r = run(["claude", "plan", "--json"], {
+      AGENT_BRIDGE_NESTED: "1",
+      AGENT_BRIDGE_LOCKED_HOST: "codex"
     });
     assert.equal(r.status, EXIT.NESTED);
   });
@@ -70,20 +56,24 @@ describe("cli gates", () => {
       JSON.stringify({ [id]: { host: "codex", target: "claude", workspaceHash: "ws", path: jobFile } }, null, 2),
       "utf8"
     );
-    const r = spawnSync(process.execPath, [cli, "status", id, "--json"], {
-      encoding: "utf8",
-      env: { ...process.env, AGENT_BRIDGE_STATE_DIR: stateDir, AGENT_BRIDGE_HOME: home }
+    const r = run(["status", id, "--json"], {
+      AGENT_BRIDGE_STATE_DIR: stateDir,
+      AGENT_BRIDGE_HOME: home
     });
     assert.equal(r.status, EXIT.FAIL);
     assert.equal(JSON.parse(r.stdout).errorCode, "job_corrupt");
   });
 
   it("install rejects self targets", () => {
-    const r = spawnSync(
-      process.execPath,
-      [cli, "install", "--host", "codex", "--targets", "codex", "--json"],
-      { encoding: "utf8", env: process.env }
-    );
+    const r = run(["install", "--host", "codex", "--targets", "codex", "--json"]);
     assert.equal(r.status, EXIT.USAGE);
+  });
+
+  it("--background exits 2 with not_implemented", () => {
+    const r = run(["claude", "plan", "--background", "--json", "--prompt", "x"], {
+      AGENT_BRIDGE_LOCKED_HOST: "codex"
+    });
+    assert.equal(r.status, EXIT.USAGE);
+    assert.equal(JSON.parse(r.stdout).errorCode, "not_implemented");
   });
 });
