@@ -68,3 +68,30 @@ export async function binaryAvailable(command, args = ["--version"], options = {
     error: result.error ? result.error.message : null
   };
 }
+
+/**
+ * 对整个进程组发信号（--background 的 worker 是 detached 组长，kill(-pid) 可杀整棵树）。
+ * @param {number} pid
+ * @param {NodeJS.Signals} [signal]
+ * @param {{ allowPidFallback?: boolean }} [options]
+ * @returns {boolean}
+ */
+export function terminateProcessTree(pid, signal = "SIGTERM", options = {}) {
+  if (!Number.isInteger(pid) || pid <= 1) {
+    return false;
+  }
+  try {
+    process.kill(-pid, signal);
+    return true;
+  } catch {
+    if (options.allowPidFallback !== true) {
+      return false;
+    }
+    try {
+      process.kill(pid, signal);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}

@@ -10,6 +10,7 @@ import { cleanupJobs, listJobs, lookupJob, newJobId, stateReport } from "./core/
 import { runDoctor } from "./core/doctor.mjs";
 import { packageRoot } from "./core/paths.mjs";
 import { runDelegation, persistJob } from "./core/run.mjs";
+import { terminateProcessTree } from "./core/process.mjs";
 import { evaluateGates } from "./core/safety.mjs";
 
 const VERSION = JSON.parse(
@@ -242,16 +243,48 @@ async function main() {
       return;
     }
     if (command === "cancel") {
-      emit(
-        {
-          status: "completed",
-          kind: "cancel",
-          jobId,
-          summary: "Not implemented: background workers land in Phase 5",
-          job: found.job
-        },
-        asJson
-      );
+      const job = found.job;
+      if (job.status === "running") {
+        if (!Number.isInteger(job.pid)) {
+          // 无 pid 的 running 记录（异常残留）无法 kill，由 TTL 清理兜底
+          emit(
+            { status: "completed", kind: "cancel", jobId, summary: "Job is running but has no pid; left for TTL cleanup", job },
+            asJson
+          );
+          process.exit(EXIT.OK);
+        }
+        const killed = terminateProcessTree(job.pid, "SIGTERM", { allowPidFallback: true });
+        // 复查竞态：worker 恰好在 kill 前写入 completed → 保留 completed 记录
+        const latest = lookupJob(jobId);
+        if (!latest || latest.missing || latest.corrupt || latest.job?.status !== "running") {
+          emit(
+            {
+              status: "completed",
+              kind: "cancel",
+              jobId,
+              summary: `Job already ${latest?.job?.status ?? "gone"}; cancel no-op`,
+              job: latest?.job ?? job
+            },
+            asJson
+          );
+          process.exit(EXIT.OK);
+        }
+        const cancelled = { ...latest.job, status: "cancelled", cancelledAt: new Date().toISOString() };
+        fs.writeFileSync(latest.meta.path, `${JSON.stringify(cancelled, null, 2)}\n`, "utf8");
+        emit(
+          {
+            status: "completed",
+            kind: "cancel",
+            jobId,
+            summary: killed ? "cancelled" : `SIGTERM failed for pid ${job.pid}; marked cancelled`,
+            job: cancelled
+          },
+          asJson
+        );
+        process.exit(EXIT.OK);
+      }
+      // 已 completed/failed/cancelled → no-op
+      emit({ status: "completed", kind: "cancel", jobId, summary: `Job already ${job.status}; cancel no-op`, job }, asJson);
       process.exit(EXIT.OK);
     }
     emit(
