@@ -241,9 +241,6 @@ export async function runDelegation(req) {
       args: result.args,
       review: reviewMeta,
       isolation: result.isolation ?? null,
-<<<<<<< HEAD
-      storage: { truncated: false, truncatedFields: [], omittedBytes: 0 }
-=======
       attachments: attachments.map((a, i) => ({
         name: a.name,
         originalPath: a.originalPath,
@@ -253,8 +250,8 @@ export async function runDelegation(req) {
           placed[i]?.placedPath ??
           null
       })),
-      storage: { truncated: false }
->>>>>>> batch3
+      // 落盘/返回层如实反映：截断只在展示层（cli.mjs emit/result）发生
+      storage: { truncated: false, truncatedFields: [], omittedBytes: 0 }
     },
     errorCode: failedProbe
       ? "write_probe_failed"
