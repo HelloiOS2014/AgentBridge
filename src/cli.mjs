@@ -227,14 +227,18 @@ async function main() {
       }, asJson);
       return;
     }
-    if (command === "cancel") {
+    const job = found.job;
+    if (command === "status" || command === "cancel") {
+      // 轻量输出：不携带 rendered/rawOutput
       emit(
         {
-          status: "completed",
-          kind: "cancel",
+          status: job?.status ?? "unknown",
           jobId,
-          summary: "Not implemented: background workers land in Phase 5",
-          job: found.job
+          summary: job?.summary ?? `job ${jobId}`,
+          kind: job?.kind ?? null,
+          target: job?.target ?? null,
+          host: job?.host ?? null,
+          completedAt: job?.completedAt ?? null
         },
         asJson
       );
@@ -243,10 +247,10 @@ async function main() {
     emit(
       {
         status: "completed",
-        kind: command,
+        kind: "result",
         jobId,
-        summary: found.job?.summary ?? `job ${jobId}`,
-        job: found.job,
+        summary: job?.summary ?? `job ${jobId}`,
+        job,
         meta: found.meta
       },
       asJson

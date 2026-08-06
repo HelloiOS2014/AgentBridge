@@ -32,7 +32,56 @@ describe("cli surface", () => {
     seedJob(env, "codex", "claude", "ws", id);
     const r = run(["status", id, "--json"], env);
     assert.equal(r.status, EXIT.OK);
-    assert.equal(JSON.parse(r.stdout).job.id, id);
+    const j = JSON.parse(r.stdout);
+    assert.equal(j.jobId, id);
+    assert.equal(j.status, "completed"); // job status, not envelope
+  });
+
+  it("status is lightweight (no rendered/rawOutput/job)", () => {
+    const env = makeEnv();
+    const id = crypto.randomUUID();
+    const jobFile = path.join(env.AGENT_BRIDGE_STATE_DIR, "codex", "claude", "ws", "jobs", `${id}.json`);
+    fs.mkdirSync(path.dirname(jobFile), { recursive: true });
+    fs.writeFileSync(
+      jobFile,
+      JSON.stringify({ id, status: "failed", kind: "review", summary: "s", host: "codex", target: "claude", rendered: "R".repeat(100), rawOutput: "O".repeat(100), completedAt: "2026-01-01T00:00:00.000Z" }, null, 2),
+      "utf8"
+    );
+    const r = run(["status", id, "--json"], env);
+    const j = JSON.parse(r.stdout);
+    assert.deepEqual(Object.keys(j).sort(), ["completedAt", "host", "jobId", "kind", "status", "summary", "target"]);
+    assert.equal(j.rendered, undefined);
+    assert.equal(j.rawOutput, undefined);
+    assert.equal(j.job, undefined);
+  });
+
+  it("result returns full job structure", () => {
+    const env = makeEnv();
+    const id = crypto.randomUUID();
+    const jobFile = path.join(env.AGENT_BRIDGE_STATE_DIR, "codex", "claude", "ws", "jobs", `${id}.json`);
+    fs.mkdirSync(path.dirname(jobFile), { recursive: true });
+    fs.writeFileSync(
+      jobFile,
+      JSON.stringify({ id, status: "completed", kind: "plan", summary: "s", host: "codex", target: "claude", rendered: "R".repeat(100), rawOutput: "O".repeat(100) }, null, 2),
+      "utf8"
+    );
+    const r = run(["result", id, "--json"], env);
+    const j = JSON.parse(r.stdout);
+    assert.equal(j.kind, "result");
+    assert.equal(j.job.id, id);
+    assert.equal(j.job.rendered, "R".repeat(100));
+  });
+
+  it("cancel is lightweight", () => {
+    const env = makeEnv();
+    const id = crypto.randomUUID();
+    seedJob(env, "codex", "claude", "ws", id);
+    const r = run(["cancel", id, "--json"], env);
+    assert.equal(r.status, EXIT.OK);
+    const j = JSON.parse(r.stdout);
+    assert.equal(j.jobId, id);
+    assert.equal(j.job, undefined);
+    assert.equal(j.rendered, undefined);
   });
 
   it("status --all lists jobs with filters", () => {
