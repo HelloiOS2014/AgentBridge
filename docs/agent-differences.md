@@ -36,12 +36,12 @@ design v2 已吸收：Claude/Agy 现网路径、Grok MCP 陷阱、Codex approval
 
 | | Claude | Codex | Grok | Antigravity |
 |--|--------|-------|------|-------------|
-| 入口 | `claude -p` | L1 `codex exec`；L2 `exec review`；L3 app-server | `grok -p` | `agy --print` |
-| 结构化输出 | `--output-format json` | `--json` JSONL；`-o` last-message；app-server RPC | `--output-format json` | best-effort JSON / text |
-| Prompt | stdin（现网） | argv/stdin | `-p` / file | `-- <prompt>` |
+| 入口 | `claude -p` | L1 `codex exec`；L2 `exec review`；L3 app-server | `grok -p` | `agy -p "<prompt>"`（完整黄金 argv 见 §4） |
+| 结构化输出 | `--output-format json` | `--json` JSONL；`-o` last-message；app-server RPC | `--output-format json` | `--output-format json`（信封 response/status/error/usage） |
+| Prompt | stdin（现网） | argv/stdin | `-p` / file | `-p` 值（紧跟 flag 之后，无 `--`） |
 | 会话恢复 | continue/resume | exec resume / thread resume | continue/resume | continue/conversation |
 | 后台 | 可选原生 `--bg`；Core job | Core job | Core job | Core job |
-| 超时 | 外层 | 外层 | 外层 | **默认 print-timeout 5m** |
+| 超时 | 外层 | 外层 | 外层 | 固定发送 **`--print-timeout 15m`**（可被 timeoutMs 覆盖，API 层） |
 
 ---
 
@@ -62,8 +62,8 @@ design v2 已吸收：Claude/Agy 现网路径、Grok MCP 陷阱、Codex approval
 
 | Kind | CLI | 额外 |
 |------|-----|------|
-| 只读类 | `--print --sandbox` | isolation 快照 + touchedFiles fail |
-| write | `--print` 无 sandbox | 禁只读 resume |
+| 只读类 | `-p "<prompt>" --sandbox [--mode plan] --print-timeout 15m --output-format json` | isolation 快照 + touchedFiles fail |
+| write | `-p "<prompt>" --print-timeout 15m --output-format json`（无 `--sandbox`；`--mode plan` 仅 kind=plan） | 禁只读 resume |
 
 ---
 
@@ -115,7 +115,7 @@ design v2 已吸收：Claude/Agy 现网路径、Grok MCP 陷阱、Codex approval
 
 ### Antigravity (agy) 已知事实（2026-08 实测 + 官方文档）
 
-- `--model` 在 print 模式会吞掉用户 prompt（实测 5 种取值形式均复现）——适配器永不传 `--model`；模型跟随 `~/.gemini/antigravity-cli/settings.json` 的 `model` 字段（ID 与显示名均接受）。
+- 桥按用户决定不传 `--model`（capabilities.modelIgnored）；早期"`--model` 吞 prompt"结论系 argv 顺序误判（`-p` 取值型 flag 吞掉了后随 token），根因已在 786a236 修复。模型跟随 `~/.gemini/antigravity-cli/settings.json` 的 `model` 字段（ID 与显示名均接受）。
 - headless 规范：`-p` + `--output-format json`（信封含 response/status/error/usage）；`--mode plan` 为官方只读调查模式；`--print-timeout` 建议 15m。
 - shell 命令默认 Ask、headless 下 soft-deny（exit 0 空输出）——需 `permissions.allow` 规则（如 `command(ls)`）预放行；或 `toolPermission: proceed-in-sandbox` + `enableTerminalSandbox: on` 走 OS 容器自动运行。
 - `--sandbox` 是终端命令 OS 容器（macOS sandbox-exec），不是执行模式。

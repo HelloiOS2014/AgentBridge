@@ -48,14 +48,14 @@ export function capabilities() {
     readOnlyGuarantee: "isolation+probe",
     headlessZeroInteractive: true,
     transports: ["agy-print"],
-    modelIgnored: true // agy print 模式 --model 坏路，模型跟随 settings.json
+    modelIgnored: true // 用户决定：不传 --model；早期"--model 吞 prompt"结论系 argv 顺序误判（-p 取值 flag 吞掉后随 token），已修（786a236）
   };
 }
 
 /**
  * @param {{ kind?: string, write?: boolean, printTimeout?: string, prompt: string }} options
- * 注意：不接受 model——agy print 模式传 --model 会吞掉用户 prompt（CLI bug），
- * 模型只能跟随 agy settings.json 的默认配置。
+ * 注意：不接受 model——用户决定不传 --model（早期误判为 CLI bug，实为 argv 顺序问题，
+ * 已修 786a236）；模型跟随 agy settings.json 的默认配置。
  * prompt 必须是 -p 的值（紧跟其后），放在 flag 之前——放后面会被 -p 吞掉（CLI bug）。
  * 官方 headless 规范（antigravity.google/docs/cli/headless）：
  * - --output-format json 返回信封（response/status/error/usage）

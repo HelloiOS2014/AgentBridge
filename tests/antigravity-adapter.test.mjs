@@ -19,7 +19,7 @@ describe("antigravity adapter", () => {
     assert.ok(!writeArgs.includes("--sandbox"));
   });
 
-  it("buildAgyArgs ignores model (agy print mode breaks on --model)", () => {
+  it("buildAgyArgs ignores model (user decision; modelIgnored)", () => {
     const args = buildAgyArgs({ model: "gemini-3.6-flash-high", write: false, prompt: "hi" });
     assert.ok(!args.includes("--model"));
   });

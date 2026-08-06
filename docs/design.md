@@ -513,13 +513,15 @@ Host 已登录 → 调 wrapper
 
 | Kind | 规范 |
 |------|------|
-| 入口 | `agy --print`；prompt `-- <text>` |
+| 入口 | `agy -p "<prompt>"`；prompt 为 `-p` 的值（紧跟其后，无 `--` 分隔） |
+| 黄金 argv | `agy -p "<prompt>" --sandbox [--mode plan] --print-timeout 15m --output-format json`（write 路径无 `--sandbox`；`--mode plan` 仅 kind=plan） |
+| model | 不传（capabilities.modelIgnored，用户决定）；模型跟随 settings.json |
 | plan / review / 只读 rescue | **`--sandbox`** + **workspace isolation** + 事后 touchedFiles → 有改则 fail |
 | rescue write | **无** `--sandbox`；真目录；禁止只读路径 `--resume` |
 | 禁止 | `--dangerously-skip-permissions` |
 | setup | bin version；auth 现网不查（ready≈available） |
-| 超时 | CLI 默认 `--print-timeout` 5m；adapter 可暴露覆盖 |
-| 输出 | best-effort JSON 或 plain text |
+| 超时 | 固定发送 `--print-timeout 15m`（API 层可被 timeoutMs 覆盖） |
+| 输出 | `--output-format json` 信封（response/status/error/usage） |
 | capabilities | plan=emulated；review=emulated；readOnly=**isolation+probe**；headless 依赖 sandbox 行为 |
 | 嵌套硬化 | isolation + NESTED；**禁止精简模式**；CLI 表面薄 |
 
