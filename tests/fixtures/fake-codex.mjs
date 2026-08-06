@@ -13,8 +13,8 @@ if (process.env.FAKE_CODEX_FAIL === "1") {
   process.exit(2);
 }
 
-// reject dangerous flags if passed
-if (args.some((a) => String(a).includes("dangerously-bypass"))) {
+// reject dangerous flags if passed (flag tokens only; prompt text may mention the policy)
+if (args.some((a) => String(a).startsWith("-") && String(a).includes("dangerously-bypass"))) {
   console.error("dangerous flag not allowed in fake");
   process.exit(3);
 }

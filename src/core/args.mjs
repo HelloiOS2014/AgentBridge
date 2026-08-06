@@ -39,7 +39,8 @@ export function parseCliArgv(argv) {
     wait: false,
     all: false,
     full: false,
-    cwd: null
+    cwd: null,
+    worker: null
   };
   /** @type {string[]} */
   const positionals = [];
@@ -82,6 +83,13 @@ export function parseCliArgv(argv) {
     }
     if (a === "--wait") {
       flags.wait = true;
+      continue;
+    }
+    if (a === "--worker") {
+      // 内部 flag：后台 worker 用固定 jobId 跑 runDelegation；"" = 缺值
+      const [v, consumed] = valueArg(argv, i);
+      flags.worker = v ?? "";
+      if (consumed) i += 1;
       continue;
     }
     if (a === "--all") {
@@ -195,8 +203,11 @@ export function parseCliArgv(argv) {
 export function usageText() {
   return [
     "Usage:",
-    "  agent-bridge --host <host> <target> <command> [options]",
+    "  agent-bridge --host <host> <target> <command> [--background] [--wait] [options]",
     "  agent-bridge-<host> <target> <command> [options]",
+    "",
+    "  --background run delegation in a detached worker (status/result/cancel track it)",
+    "  --wait      with --background: block until the job finishes (10min default, AGENT_BRIDGE_WAIT_TIMEOUT_MS)",
     "  agent-bridge status|result|cancel <job-id> [--json]",
     "  agent-bridge result <job-id> --full [--json]   (skip truncation)",
     "  agent-bridge status --all [--host <host>] [--target <target>] [--json]",

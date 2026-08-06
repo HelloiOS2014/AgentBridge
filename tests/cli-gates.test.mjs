@@ -69,11 +69,27 @@ describe("cli gates", () => {
     assert.equal(r.status, EXIT.USAGE);
   });
 
-  it("--background exits 2 with not_implemented", () => {
-    const r = run(["claude", "plan", "--background", "--json", "--prompt", "x"], {
+  it("--worker and --background are mutually exclusive (exit 2)", () => {
+    const r = run(["claude", "plan", "--background", "--worker", "abc", "--json", "--prompt", "x"], {
       AGENT_BRIDGE_LOCKED_HOST: "codex"
     });
     assert.equal(r.status, EXIT.USAGE);
-    assert.equal(JSON.parse(r.stdout).errorCode, "not_implemented");
+    assert.equal(JSON.parse(r.stdout).errorCode, "usage");
+  });
+
+  it("--worker without a value exits 2", () => {
+    const r = run(["claude", "plan", "--worker", "--json", "--prompt", "x"], {
+      AGENT_BRIDGE_LOCKED_HOST: "codex"
+    });
+    assert.equal(r.status, EXIT.USAGE);
+    assert.equal(JSON.parse(r.stdout).errorCode, "usage");
+  });
+
+  it("--wait without --background exits 2", () => {
+    const r = run(["claude", "plan", "--wait", "--json", "--prompt", "x"], {
+      AGENT_BRIDGE_LOCKED_HOST: "codex"
+    });
+    assert.equal(r.status, EXIT.USAGE);
+    assert.equal(JSON.parse(r.stdout).errorCode, "usage");
   });
 });

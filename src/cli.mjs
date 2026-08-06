@@ -1,13 +1,17 @@
 #!/usr/bin/env node
 import fs from "node:fs";
+import path from "node:path";
+import { spawn } from "node:child_process";
 import { parseCliArgv, usageText } from "./core/args.mjs";
 import { EXIT } from "./core/exit-codes.mjs";
 import { allowedTargets, isHostId, isTargetId } from "./core/ids.mjs";
 import { runInstall, resolveInstallTargets, runUninstall } from "./core/install.mjs";
-import { cleanupJobs, listJobs, lookupJob, stateReport } from "./core/jobs.mjs";
+import { cleanupJobs, listJobs, lookupJob, newJobId, stateReport } from "./core/jobs.mjs";
 import { truncateByBytes } from "./core/git-context.mjs";
 import { runDoctor } from "./core/doctor.mjs";
-import { runDelegation } from "./core/run.mjs";
+import { packageRoot } from "./core/paths.mjs";
+import { runDelegation, persistJob } from "./core/run.mjs";
+import { terminateProcessTree } from "./core/process.mjs";
 import { evaluateGates } from "./core/safety.mjs";
 
 const VERSION = JSON.parse(
@@ -120,6 +124,17 @@ async function main() {
       target: target ?? null
     }, asJson);
     return;
+  }
+
+  if (flags.worker !== null) {
+    if (flags.worker === "") {
+      fail(EXIT.USAGE, { errorCode: "usage", errorMessage: "--worker requires a <job-id>" }, asJson);
+      return;
+    }
+    if (flags.background) {
+      fail(EXIT.USAGE, { errorCode: "usage", errorMessage: "--worker and --background are mutually exclusive" }, asJson);
+      return;
+    }
   }
 
   if (command === "install") {
@@ -262,7 +277,49 @@ async function main() {
       return;
     }
     const job = found.job;
-    if (command === "status" || command === "cancel") {
+    if (command === "cancel") {
+      if (job.status === "running") {
+        if (!Number.isInteger(job.pid)) {
+          // 无 pid 的 running 记录（异常残留）无法 kill，由 TTL 清理兜底
+          emit(
+            { status: "completed", kind: "cancel", jobId, summary: "Job is running but has no pid; left for TTL cleanup" },
+            asJson
+          );
+          process.exit(EXIT.OK);
+        }
+        const killed = terminateProcessTree(job.pid, "SIGTERM", { allowPidFallback: true });
+        // 复查竞态：worker 恰好在 kill 前写入 completed → 保留 completed 记录
+        const latest = lookupJob(jobId);
+        if (!latest || latest.missing || latest.corrupt || latest.job?.status !== "running") {
+          emit(
+            {
+              status: "completed",
+              kind: "cancel",
+              jobId,
+              summary: `Job already ${latest?.job?.status ?? "gone"}; cancel no-op`
+            },
+            asJson
+          );
+          process.exit(EXIT.OK);
+        }
+        const cancelled = { ...latest.job, status: "cancelled", cancelledAt: new Date().toISOString() };
+        fs.writeFileSync(latest.meta.path, `${JSON.stringify(cancelled, null, 2)}\n`, "utf8");
+        emit(
+          {
+            status: "completed",
+            kind: "cancel",
+            jobId,
+            summary: killed ? "cancelled" : `SIGTERM failed for pid ${job.pid}; marked cancelled`
+          },
+          asJson
+        );
+        process.exit(EXIT.OK);
+      }
+      // 已 completed/failed/cancelled → no-op
+      emit({ status: "completed", kind: "cancel", jobId, summary: `Job already ${job.status}; cancel no-op` }, asJson);
+      process.exit(EXIT.OK);
+    }
+    if (command === "status") {
       // 轻量输出：不携带 rendered/rawOutput
       emit(
         {
@@ -293,16 +350,86 @@ async function main() {
   }
 
   if (["plan", "review", "adversarial-review", "rescue", "setup"].includes(command)) {
-    if (flags.background || flags.wait) {
+    if (flags.wait && !flags.background) {
       fail(EXIT.USAGE, {
-        errorCode: "not_implemented",
-        errorMessage: "--background/--wait are Phase 5 (background workers); run foreground for now"
+        errorCode: "usage",
+        errorMessage: "--wait requires --background"
       }, asJson);
       return;
     }
-    // No env: the adapter builds the child env from the allowlist-filtered
-    // inherited layer (+ NESTED marker), so the host's full env — including
-    // other agents' API keys — never reaches the target agent context.
+    if (flags.background) {
+      // 父进程是 running 记录的唯一写者；worker 只覆盖最终记录。
+      // 子进程 env 透传（不注入 NESTED）；detached 使其自成进程组（kill(-pid) 可用）。
+      const jobId = newJobId();
+      const childArgs = process.argv.slice(2).filter((a) => a !== "--background" && a !== "--wait");
+      const cliPath = path.join(packageRoot(), "src", "cli.mjs");
+      const child = spawn(process.execPath, [cliPath, ...childArgs, "--worker", jobId], {
+        detached: true,
+        stdio: "ignore",
+        env: process.env
+      });
+      child.on("error", () => {
+        // spawn 失败：running 记录留给 TTL 清理兜底
+      });
+      const host = gate.host ?? "unknown";
+      persistJob(
+        {
+          id: jobId,
+          status: "running",
+          kind: command === "adversarial-review" ? "adversarial-review" : command,
+          target,
+          host,
+          jobId,
+          pid: child.pid,
+          startedAt: new Date().toISOString(),
+          summary: "running"
+        },
+        { host, target, cwd: flags.cwd || process.cwd(), env: process.env }
+      );
+      if (!flags.wait) {
+        emit({ status: "running", jobId }, asJson);
+      }
+      if (flags.wait) {
+        const timeoutMs =
+          Number(process.env.AGENT_BRIDGE_WAIT_TIMEOUT_MS) > 0
+            ? Number(process.env.AGENT_BRIDGE_WAIT_TIMEOUT_MS)
+            : 10 * 60 * 1000;
+        const deadline = Date.now() + timeoutMs;
+        let finalJob = null;
+        while (Date.now() < deadline) {
+          const found = lookupJob(jobId);
+          if (found && !found.missing && !found.corrupt && found.job?.status !== "running") {
+            finalJob = found.job;
+            break;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+        if (!finalJob) {
+          fail(EXIT.FAIL, {
+            errorCode: "wait_timeout",
+            errorMessage: `Timed out after ${Math.round(timeoutMs / 1000)}s waiting for job ${jobId}`,
+            jobId,
+            kind: command === "adversarial-review" ? "adversarial-review" : command,
+            target,
+            host: gate.host ?? "unknown"
+          }, asJson);
+          return;
+        }
+        const code =
+          finalJob.status === "completed"
+            ? EXIT.OK
+            : finalJob.errorCode === "not_ready"
+              ? EXIT.NOT_READY
+              : finalJob.errorCode === "usage"
+                ? EXIT.USAGE
+                : EXIT.FAIL;
+        emit(finalJob, true);
+        process.exit(code);
+      }
+      process.exit(EXIT.OK);
+    }
+    // 不传 env：adapter 用 allowlist 过滤后的继承层构造子进程 env（+ NESTED），
+    // 宿主的完整 env（含其它 agent 的 API 密钥）不会进入目标 agent 上下文。
     const result = await runDelegation({
       host: gate.host,
       target,
@@ -310,7 +437,8 @@ async function main() {
       prompt: flags.prompt ?? rest.join(" "),
       model: flags.model,
       write: flags.write,
-      cwd: flags.cwd || process.cwd()
+      cwd: flags.cwd || process.cwd(),
+      jobId: flags.worker !== null ? flags.worker : undefined
     });
     const code =
       result.status === "completed"
