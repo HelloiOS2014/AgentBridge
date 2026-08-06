@@ -34,3 +34,4 @@ A running job may have empty stdout for a while — keep polling unless the user
 
 - Wrapper path is created by `agent-bridge install --host {{HOST}} --apply`.
 - Users should not need to export environment variables for normal use.
+- 优先呈现 `summary`；若 `storage.truncated=true` 需要全文，用 `agent-bridge result "$JOB_ID" --full` 按需取回，不要把超长输出整段复制进对话。

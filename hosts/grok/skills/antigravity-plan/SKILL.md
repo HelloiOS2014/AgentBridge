@@ -42,3 +42,4 @@ Use the host wrapper (created by `agent-bridge install --host grok --apply`). Pr
 - Return the JSON `rendered` / `summary` to the user.
 - Preserve assumptions, risks, sequencing, and verification steps.
 - Do **not** implement the plan unless the user explicitly asks Grok Build to implement (or explicitly asks write-enabled rescue on Antigravity).
+- 优先呈现 `summary`；若 `storage.truncated=true` 需要全文，用 `agent-bridge result "<job-id>" --full` 按需取回，不要把超长输出整段复制进对话。

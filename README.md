@@ -51,6 +51,8 @@ agent-bridge doctor --host codex
 
 **不需要** `export` 任何变量。wrapper / skill 绝对路径由 install 写好；CLI 自动发现本机 `claude`/`agy`/`grok`/`codex`。
 
+> **skill 模板更新后**：用户侧需重跑 `agent-bridge install --host <host> --apply` 才会同步（marketplace 自足落地后此步取消）。
+
 ## 文档
 
 | 文档 | 说明 |

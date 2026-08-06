@@ -40,3 +40,4 @@ Optional: `--cwd "$WORKSPACE"`, `--model <model>` if user named one.
 
 - Summarize diagnosis, files touched (if any), verification, remaining risk.
 - If write ran, show what changed; leave commit decisions to the user / Codex.
+- 优先呈现 `summary`；若 `storage.truncated=true` 需要全文，用 `agent-bridge result "<job-id>" --full` 按需取回，不要把超长输出整段复制进对话。

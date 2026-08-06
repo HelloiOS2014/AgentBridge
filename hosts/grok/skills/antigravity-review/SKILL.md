@@ -43,3 +43,4 @@ Optional: `--cwd "$WORKSPACE"`.
 
 - Present findings first; keep file references and residual risk.
 - Do not start implementing fixes unless the user explicitly requests it.
+- 优先呈现 `summary`；若 `storage.truncated=true` 需要全文，用 `agent-bridge result "<job-id>" --full` 按需取回，不要把超长输出整段复制进对话。
