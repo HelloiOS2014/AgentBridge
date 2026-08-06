@@ -136,6 +136,7 @@ function detectAgyRuntimeError(result) {
 export async function runAntigravity(req) {
   const write = Boolean(req.write);
   const agyBin = resolveAgyBin({ env: req.env });
+  const printTimeout = req.timeoutMs ? `${Math.ceil(req.timeoutMs / 60000)}m` : undefined;
   const env = {
     ...process.env,
     ...(req.env ?? {}),
@@ -148,7 +149,7 @@ export async function runAntigravity(req) {
         "Antigravity read-only→write: use --write without --resume for a fresh write-capable run"
       );
     }
-    const args = buildAgyArgs({ write: true, kind: req.kind, prompt: req.prompt });
+    const args = buildAgyArgs({ write: true, kind: req.kind, prompt: req.prompt, printTimeout });
     const result = await runCommand(agyBin, args, {
       cwd: req.cwd,
       env,
@@ -168,7 +169,7 @@ export async function runAntigravity(req) {
       output,
       rawOutput: result.stdout,
       stderr: result.stderr,
-      sessionId: parsed?.session_id ?? parsed?.sessionId ?? null,
+      sessionId: parsed?.conversation_id ?? parsed?.session_id ?? parsed?.sessionId ?? null,
       args,
       agyBin,
       isolation: null,
@@ -192,7 +193,7 @@ export async function runAntigravity(req) {
       "",
       req.prompt
     ].join("\n");
-    const args = buildAgyArgs({ write: false, kind: req.kind, prompt: isolatedPrompt });
+    const args = buildAgyArgs({ write: false, kind: req.kind, prompt: isolatedPrompt, printTimeout });
     const result = await runCommand(agyBin, args, {
       cwd: isolation.isolatedCwd,
       env,
@@ -217,7 +218,7 @@ export async function runAntigravity(req) {
       output,
       rawOutput: result.stdout,
       stderr: result.stderr,
-      sessionId: parsed?.session_id ?? parsed?.sessionId ?? null,
+      sessionId: parsed?.conversation_id ?? parsed?.session_id ?? parsed?.sessionId ?? null,
       args,
       agyBin,
       isolation: isolationMetadata(isolation, {

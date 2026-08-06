@@ -155,6 +155,19 @@ describe("agy json envelope parsing", () => {
     assert.deepEqual(result.usage, { input_tokens: 1, output_tokens: 1 });
   });
 
+  it("kind plan and timeoutMs flow into argv", async () => {
+    const dir = makeGitDir();
+    const result = await runAntigravity({
+      kind: "plan",
+      prompt: "plan something",
+      cwd: dir,
+      timeoutMs: 30 * 60 * 1000,
+      env: { ...process.env, AGENT_BRIDGE_ANTIGRAVITY_BIN: fakeAgy }
+    });
+    assert.ok(result.args.includes("--mode"));
+    assert.equal(result.args[result.args.indexOf("--print-timeout") + 1], "30m");
+  });
+
   it("envelope ERROR with error text fails with errorMessage", async () => {
     const dir = makeGitDir();
     const result = await runAntigravity({
