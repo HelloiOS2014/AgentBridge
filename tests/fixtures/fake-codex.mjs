@@ -14,7 +14,7 @@ if (process.env.FAKE_CODEX_FAIL === "1") {
 }
 
 // reject dangerous flags if passed
-if (args.some((a) => String(a).includes("dangerously-bypass"))) {
+if (args.some((a) => String(a).startsWith("-") && String(a).includes("dangerously-bypass"))) {
   console.error("dangerous flag not allowed in fake");
   process.exit(3);
 }

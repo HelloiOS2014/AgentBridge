@@ -90,7 +90,9 @@ export function buildCodexArgs(options = {}) {
   }
 
   assertNoForbiddenFlags(args);
-  if (args.some((a) => String(a).includes("dangerously-bypass"))) {
+  // 只拦 flag 形态的 token：prompt/review 上下文是 argv 内容，可能合法包含该字符串
+  // （如被审 diff 里出现 dangerously-bypass），不算 bypass 旗标。
+  if (args.some((a) => String(a).startsWith("-") && String(a).includes("dangerously-bypass"))) {
     throw new Error("Codex dangerously-bypass is forbidden");
   }
   return args;
