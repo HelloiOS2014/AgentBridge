@@ -16,7 +16,7 @@ function run(args, env = {}) {
 }
 function makeEnv(t) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-cli-"));
-  t.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  t?.after?.(() => fs.rmSync(home, { recursive: true, force: true }));
   return { AGENT_BRIDGE_STATE_DIR: path.join(home, "state"), AGENT_BRIDGE_HOME: home };
 }
 function seedJob(env, host, target, ws, id) {

@@ -253,7 +253,8 @@ describe("agy json envelope parsing", () => {
     assert.match(result.output, /Fake Agy response/);
     assert.equal(result.sessionId, "fake-agy-conversation");
     assert.deepEqual(result.usage, { input_tokens: 1, output_tokens: 1 });
-    assert.equal(result.isolation, null);
+    // 批次 4 起 write 路径在 git worktree 执行：isolation 携带 antigravityWorktree（非 git 目录回退 null）
+    assert.ok(result.isolation === null || result.isolation.antigravityWorktree);
     assert.deepEqual(result.touchedFiles, []);
     assert.ok(!result.args.includes("--sandbox"));
   });
