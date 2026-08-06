@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from "node:fs";
+import path from "node:path";
 import { spawn } from "node:child_process";
 import { parseCliArgv, usageText } from "./core/args.mjs";
 import { EXIT } from "./core/exit-codes.mjs";
@@ -268,12 +269,44 @@ async function main() {
   }
 
   if (["plan", "review", "adversarial-review", "rescue", "setup"].includes(command)) {
-    if (flags.background || flags.wait) {
+    if (flags.wait && !flags.background) {
       fail(EXIT.USAGE, {
-        errorCode: "not_implemented",
-        errorMessage: "--background/--wait are Phase 5 (background workers); run foreground for now"
+        errorCode: "usage",
+        errorMessage: "--wait requires --background"
       }, asJson);
       return;
+    }
+    if (flags.background) {
+      // 父进程是 running 记录的唯一写者；worker 只覆盖最终记录。
+      // 子进程 env 透传（不注入 NESTED）；detached 使其自成进程组（kill(-pid) 可用）。
+      const jobId = newJobId();
+      const childArgs = process.argv.slice(2).filter((a) => a !== "--background" && a !== "--wait");
+      const cliPath = path.join(packageRoot(), "src", "cli.mjs");
+      const child = spawn(process.execPath, [cliPath, ...childArgs, "--worker", jobId], {
+        detached: true,
+        stdio: "ignore",
+        env: process.env
+      });
+      child.on("error", () => {
+        // spawn 失败：running 记录留给 TTL 清理兜底
+      });
+      const host = gate.host ?? "unknown";
+      persistJob(
+        {
+          id: jobId,
+          status: "running",
+          kind: command === "adversarial-review" ? "adversarial-review" : command,
+          target,
+          host,
+          jobId,
+          pid: child.pid,
+          startedAt: new Date().toISOString(),
+          summary: "running"
+        },
+        { host, target, cwd: flags.cwd || process.cwd(), env: process.env }
+      );
+      emit({ status: "running", jobId }, asJson);
+      process.exit(EXIT.OK);
     }
     const result = await runDelegation({
       host: gate.host,
