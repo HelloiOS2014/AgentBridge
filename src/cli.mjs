@@ -5,6 +5,7 @@ import { EXIT } from "./core/exit-codes.mjs";
 import { allowedTargets, isHostId, isTargetId } from "./core/ids.mjs";
 import { runInstall, resolveInstallTargets, runUninstall } from "./core/install.mjs";
 import { cleanupJobs, listJobs, lookupJob, stateReport } from "./core/jobs.mjs";
+import { truncateByBytes } from "./core/git-context.mjs";
 import { runDoctor } from "./core/doctor.mjs";
 import { runDelegation } from "./core/run.mjs";
 import { evaluateGates } from "./core/safety.mjs";
@@ -12,6 +13,39 @@ import { evaluateGates } from "./core/safety.mjs";
 const VERSION = JSON.parse(
   fs.readFileSync(new URL("../package.json", import.meta.url), "utf8")
 ).version;
+
+/** KB env 值解析：无效/<=0 回退默认。 */
+function limitKB(env, key, fallbackKB) {
+  const value = Number(env[key]);
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : fallbackKB;
+}
+
+/**
+ * 展示层截断（落盘/返回均为全量，仅此处按阈值截断 rendered/rawOutput）。
+ * 返回新对象；storage 如实反映本次展示是否截断。
+ */
+function truncateForDisplay(payload, env) {
+  const renderLimit = limitKB(env, "AGENT_BRIDGE_RENDER_LIMIT_KB", 16) * 1024;
+  const rawLimit = limitKB(env, "AGENT_BRIDGE_RAW_LIMIT_KB", 64) * 1024;
+  const truncatedFields = [];
+  let omittedBytes = 0;
+  const out = { ...payload };
+  for (const [field, limit] of [["rendered", renderLimit], ["rawOutput", rawLimit]]) {
+    if (typeof out[field] === "string") {
+      const t = truncateByBytes(out[field], limit);
+      if (t.truncated) {
+        out[field] = t.value;
+        truncatedFields.push(field);
+        omittedBytes += t.omittedBytes;
+      }
+    }
+  }
+  out.metadata = {
+    ...(out.metadata ?? {}),
+    storage: { truncated: truncatedFields.length > 0, truncatedFields, omittedBytes }
+  };
+  return out;
+}
 
 /**
  * @param {unknown} payload
@@ -250,7 +284,7 @@ async function main() {
         kind: "result",
         jobId,
         summary: job?.summary ?? `job ${jobId}`,
-        job,
+        job: flags.full ? job : truncateForDisplay(job, process.env),
         meta: found.meta
       },
       asJson
@@ -284,7 +318,7 @@ async function main() {
           : result.errorCode === "usage"
             ? EXIT.USAGE
             : EXIT.FAIL;
-    emit(result, true);
+    emit(truncateForDisplay(result, process.env), true);
     process.exit(code);
   }
 

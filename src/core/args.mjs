@@ -38,6 +38,7 @@ export function parseCliArgv(argv) {
     background: false,
     wait: false,
     all: false,
+    full: false,
     cwd: null
   };
   /** @type {string[]} */
@@ -85,6 +86,10 @@ export function parseCliArgv(argv) {
     }
     if (a === "--all") {
       flags.all = true;
+      continue;
+    }
+    if (a === "--full") {
+      flags.full = true;
       continue;
     }
     if (a === "--host") {
@@ -193,6 +198,7 @@ export function usageText() {
     "  agent-bridge --host <host> <target> <command> [options]",
     "  agent-bridge-<host> <target> <command> [options]",
     "  agent-bridge status|result|cancel <job-id> [--json]",
+    "  agent-bridge result <job-id> --full [--json]   (skip truncation)",
     "  agent-bridge status --all [--host <host>] [--target <target>] [--json]",
     "  agent-bridge storage [--json]",
     "  agent-bridge cleanup [--host <host>] [--target <target>] [--all] [--json]",

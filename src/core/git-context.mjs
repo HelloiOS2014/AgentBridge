@@ -255,7 +255,7 @@ function formatFullDiff(parts) {
     .join("\n\n");
 }
 
-function truncateByBytes(value, maxBytes) {
+export function truncateByBytes(value, maxBytes) {
   const limit = byteLimit(maxBytes, DEFAULT_MAX_DIFF_BYTES);
   const buffer = Buffer.from(value, "utf8");
   const originalBytes = buffer.byteLength;

@@ -189,7 +189,7 @@ export async function runDelegation(req) {
       args: result.args,
       review: reviewMeta,
       isolation: result.isolation ?? null,
-      storage: { truncated: false }
+      storage: { truncated: false, truncatedFields: [], omittedBytes: 0 }
     },
     errorCode: failedProbe
       ? "write_probe_failed"
