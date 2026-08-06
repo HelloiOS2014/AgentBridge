@@ -73,6 +73,31 @@ describe("cli surface", () => {
     assert.equal(JSON.parse(after.stdout).count, 0);
   });
 
+  it("cleanup --target nonsense exits 2", () => {
+    const env = makeEnv();
+    const r = run(["cleanup", "--target", "nonsense", "--json"], env);
+    assert.equal(r.status, EXIT.USAGE);
+    assert.equal(JSON.parse(r.stdout).errorCode, "usage");
+  });
+
+  it("status --all --target nonsense exits 2", () => {
+    const env = makeEnv();
+    const r = run(["status", "--all", "--target", "nonsense", "--json"], env);
+    assert.equal(r.status, EXIT.USAGE);
+    assert.equal(JSON.parse(r.stdout).errorCode, "usage");
+  });
+
+  it("cleanup --host only deletes that host's jobs", () => {
+    const env = makeEnv();
+    seedJob(env, "codex", "claude", "ws", crypto.randomUUID());
+    seedJob(env, "claude", "grok", "ws", crypto.randomUUID());
+    const r = run(["cleanup", "--host", "codex", "--json"], env);
+    assert.equal(r.status, EXIT.OK);
+    assert.equal(JSON.parse(r.stdout).deleted, 1);
+    const after = run(["status", "--all", "--json"], env);
+    assert.equal(JSON.parse(after.stdout).count, 1);
+  });
+
   it("install --remove uninstalls host", () => {
     const env = makeEnv();
     env.HOME = env.AGENT_BRIDGE_HOME;

@@ -72,7 +72,7 @@ export function registerJob(entry) {
 }
 
 /**
- * 扫描 $STATE 下 <host>/<target>/<hash>/jobs/<id>.json（目录名精确为 "jobs"），命中返回 {meta, path, relParts}
+ * 扫描 $STATE 下 <host>/<target>/<hash>/jobs/<id>.json（目录名精确为 "jobs"），命中返回 {meta, path}
  */
 function scanJobFile(jobId, env) {
   const root = stateRoot(env);
@@ -162,7 +162,7 @@ export function stateReport(env = process.env) {
   const counts = new Map();
   let totalBytes = 0;
   for (const j of jobs) {
-    totalBytes += fs.statSync(j.path).size;
+    totalBytes += fs.statSync(j.path, { throwIfNoEntry: false })?.size ?? 0;
     const bucket = `${j.host}/${j.target}`;
     counts.set(bucket, (counts.get(bucket) ?? 0) + 1);
   }

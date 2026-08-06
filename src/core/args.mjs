@@ -169,6 +169,9 @@ export function parseCliArgv(argv) {
   if (flags.host && !isHostId(flags.host)) {
     throw new Error(`Invalid --host: ${flags.host}`);
   }
+  if (flags.target && !isTargetId(flags.target)) {
+    throw new Error(`Invalid --target: ${flags.target}`);
+  }
 
   return { target, command, rest, flags };
 }
