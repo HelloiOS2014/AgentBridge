@@ -3,6 +3,7 @@
 // Each <target>-bridge plugin ships: src/ (engine copy), bin/agent-bridge-<host> (static
 // wrapper), skills/, version (package version), package.json, skills-templates/ — so the
 // host marketplace install is fully self-sufficient (skill bootstrap copies engine on first use).
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -133,9 +134,38 @@ function writePluginPayload(host, target) {
   fs.cpSync(templatesDir, path.join(dir, "skills-templates"), { recursive: true });
 }
 
+/**
+ * 版本闸门：引擎/模板相对 HEAD 有改动但 package.json version 未 bump 时拒绝生成——
+ * 自举只按 version 文件决定是否覆盖引擎，版本不 bump 则用户机器永远跑旧代码。
+ */
+function assertVersionBumped() {
+  const version = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")).version;
+  const headVersion = (() => {
+    const r = spawnSync("git", ["show", `HEAD:package.json`], { cwd: root, encoding: "utf8" });
+    return r.status === 0 ? JSON.parse(r.stdout).version : null;
+  })();
+  if (headVersion === null) {
+    return; // 非 git 环境（如 npm 打包目录）：跳过闸门
+  }
+  if (headVersion === version) {
+    const dirty = spawnSync("git", ["diff", "--quiet", "HEAD", "--", "src/", "skills-templates/"], { cwd: root });
+    if (dirty.status === 1) {
+      console.error(
+        `[generate-skills] 引擎/模板已修改但 package.json version 仍是 ${version}（HEAD 相同）。\n` +
+          `自举的版本闸门不会触发，用户机器上的引擎将停留在旧版。\n` +
+          `请先 bump package.json version（如 ${version} → ${version.replace(/(\d+)$/, (n) => String(Number(n) + 1))}）再重新生成。`
+      );
+      process.exit(1);
+    }
+  }
+}
+
 function main() {
   const dry = process.argv.includes("--dry-run");
   let count = 0;
+  if (!dry) {
+    assertVersionBumped();
+  }
 
   for (const host of ["codex", "claude", "grok"]) {
     const targets = allowedTargets(/** @type {import("../src/core/ids.mjs").HostId} */ (host));

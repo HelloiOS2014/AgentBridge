@@ -44,6 +44,10 @@
 7. **发行面**
    - `npm run check:manifest`；一 Target 一 bridge 包；断言插件含 src/cli.mjs + wrapper + 自举段 + **插件内 src 与根 src 一致性**（文件清单 + sha256）。
 
+8. **发布（版本闸门，硬性）**
+   - 改 `src/` 或 `skills-templates/` 后，**必须先 bump `package.json` version** 再 `node scripts/generate-skills.mjs`（脚本强制：相对 HEAD 有引擎/模板改动但 version 未 bump 时拒绝生成）。
+   - 原因：自举按 version 文件决定是否覆盖用户机器上的引擎；版本不 bump，用户机器永远跑旧代码。
+
 ## 实现偏好
 
 - Node ESM ≥ 18.18；优先零运行时依赖。

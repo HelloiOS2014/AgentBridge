@@ -102,6 +102,8 @@ npm run check:manifest   # 发行面校验（无 self、插件引擎一致性）
 npm run generate:skills  # 改模板/引擎后重新生成插件产物
 ```
 
+发布更新：改引擎/模板 → **bump `package.json` version**（自举按版本决定是否覆盖用户引擎，不 bump 用户机器不更新）→ `generate:skills`（未 bump 会拒绝）→ commit + push → 用户侧刷新 marketplace、更新插件即可，引擎由自举自动升级。
+
 状态：Phase 0-5 全部交付（除可选 Codex L3 app-server）；硬化、回传卫生、marketplace 自足、附件、真机验收完成。
 
 ## 许可
