@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { assertNoForbiddenFlags } from "../core/safety.mjs";
+import { buildTargetEnv } from "../core/env-allowlist.mjs";
 import { binaryAvailable, runCommand } from "../core/process.mjs";
 
 export function resolveGrokBin(options = {}) {
@@ -149,11 +150,7 @@ export async function runGrok(req) {
     model: req.model,
     prompt: req.prompt
   });
-  const env = {
-    ...process.env,
-    ...(req.env ?? {}),
-    AGENT_BRIDGE_NESTED: "1"
-  };
+  const env = buildTargetEnv(req.env);
   const result = await runCommand(grokBin, args, {
     cwd: req.cwd,
     env,

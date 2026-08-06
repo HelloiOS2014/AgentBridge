@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { assertNoForbiddenFlags } from "../core/safety.mjs";
+import { buildTargetEnv } from "../core/env-allowlist.mjs";
 import { binaryAvailable, runCommand } from "../core/process.mjs";
 import {
   collectGitTouchedFiles,
@@ -159,11 +160,7 @@ export async function runAntigravity(req) {
   const write = Boolean(req.write);
   const agyBin = resolveAgyBin({ env: req.env });
   const printTimeout = req.timeoutMs ? `${Math.ceil(req.timeoutMs / 60000)}m` : undefined;
-  const env = {
-    ...process.env,
-    ...(req.env ?? {}),
-    AGENT_BRIDGE_NESTED: "1"
-  };
+  const env = buildTargetEnv(req.env);
 
   if (write) {
     if (req.resume) {

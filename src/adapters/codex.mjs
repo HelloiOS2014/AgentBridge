@@ -2,6 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { assertNoForbiddenFlags } from "../core/safety.mjs";
+import { buildTargetEnv } from "../core/env-allowlist.mjs";
 import { binaryAvailable, runCommand } from "../core/process.mjs";
 
 export function resolveCodexBin(options = {}) {
@@ -171,11 +172,7 @@ export async function runCodex(req) {
     base: req.base,
     lastMessageFile
   });
-  const env = {
-    ...process.env,
-    ...(req.env ?? {}),
-    AGENT_BRIDGE_NESTED: "1"
-  };
+  const env = buildTargetEnv(req.env);
 
   const result = await runCommand(codexBin, args, {
     cwd: req.cwd,

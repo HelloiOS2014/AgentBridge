@@ -23,6 +23,11 @@ if (process.env.FAKE_AGY_TOUCH) {
   fs.writeFileSync(path.join(process.cwd(), process.env.FAKE_AGY_TOUCH), "fake agy touched this file\n", "utf8");
 }
 
+if (process.env.FAKE_AGY_DUMP_ENV) {
+  console.log(JSON.stringify(process.env));
+  process.exit(0);
+}
+
 if (process.env.FAKE_AGY_ERROR) {
   console.log(JSON.stringify({
     conversation_id: "fake-agy-conversation",
