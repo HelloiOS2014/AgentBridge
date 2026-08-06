@@ -198,8 +198,11 @@ export function parseCliArgv(argv) {
 export function usageText() {
   return [
     "Usage:",
-    "  agent-bridge --host <host> <target> <command> [options]",
+    "  agent-bridge --host <host> <target> <command> [--background] [--wait] [options]",
     "  agent-bridge-<host> <target> <command> [options]",
+    "",
+    "  --background run delegation in a detached worker (status/result/cancel track it)",
+    "  --wait      with --background: block until the job finishes (10min default, AGENT_BRIDGE_WAIT_TIMEOUT_MS)",
     "  agent-bridge status|result|cancel <job-id> [--json]",
     "  agent-bridge status --all [--host <host>] [--target <target>] [--json]",
     "  agent-bridge storage [--json]",
