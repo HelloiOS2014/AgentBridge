@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { ADAPTERS, RUNNERS } from "../adapters/index.mjs";
 import { collectReviewContext } from "./git-context.mjs";
-import { newJobId, registerJob } from "./jobs.mjs";
+import { newJobId, pruneExpiredJobs, registerJob } from "./jobs.mjs";
 import { ensureDir, stateRoot } from "./paths.mjs";
 import { composePlanPrompt, composeRescuePrompt, composeReviewPrompt } from "./prompts.mjs";
 import { compareFingerprints, gitFingerprint } from "./write-probe.mjs";
@@ -30,8 +30,10 @@ export function jobDir(opts) {
  * @param {object} opts
  */
 function persistJob(job, opts) {
+  const env = opts.env ?? process.env;
   const dir = jobDir(opts);
   ensureDir(dir);
+  pruneExpiredJobs(env); // 机会式 TTL 清理（跳过 running）
   const jobFile = path.join(dir, `${job.id}.json`);
   fs.writeFileSync(jobFile, `${JSON.stringify(job, null, 2)}\n`, "utf8");
   registerJob({

@@ -119,7 +119,7 @@ export function lookupJob(jobId, env = process.env) {
 /**
  * 扫描 state 树收集全部 job（损坏文件跳过）。
  * @param {NodeJS.ProcessEnv} [env]
- * @returns {Array<{ jobId: string, host: string, target: string, workspaceHash: string, summary: string | null, completedAt: string | null, path: string }>}
+ * @returns {Array<{ jobId: string, host: string, target: string, workspaceHash: string, status: string | null, summary: string | null, completedAt: string | null, path: string }>}
  */
 export function listJobs(env = process.env) {
   const root = stateRoot(env);
@@ -141,6 +141,7 @@ export function listJobs(env = process.env) {
             host: String(job.host ?? rel[0] ?? "unknown"),
             target: String(job.target ?? rel[1] ?? "unknown"),
             workspaceHash: rel[2] ?? "unknown",
+            status: job.status ?? null,
             summary: job.summary ?? null,
             completedAt: job.completedAt ?? null,
             path: p
@@ -152,6 +153,49 @@ export function listJobs(env = process.env) {
     }
   }
   return jobs.sort((a, b) => a.path.localeCompare(b.path));
+}
+
+/** 从现存 job 文件重建索引（清掉孤儿条目）。 */
+function rebuildJobIndex(env) {
+  const index = {};
+  for (const j of listJobs(env)) {
+    index[j.jobId] = { host: j.host, target: j.target, workspaceHash: j.workspaceHash, path: j.path };
+  }
+  writeJobIndex(index, env);
+  return index;
+}
+
+/**
+ * @param {NodeJS.ProcessEnv} [env]
+ */
+export function jobTtlDays(env = process.env) {
+  const value = Number(env.AGENT_BRIDGE_JOB_TTL_DAYS);
+  return Number.isFinite(value) ? value : 7;
+}
+
+/**
+ * 按文件 mtime 清理过期 job；status === "running" 的记录跳过。TTL <= 0 禁用。
+ * @param {NodeJS.ProcessEnv} [env]
+ * @param {number} [ttlDays]
+ */
+export function pruneExpiredJobs(env = process.env, ttlDays = jobTtlDays(env)) {
+  if (!(ttlDays > 0)) {
+    return { deleted: 0 };
+  }
+  const cutoffMs = Date.now() - ttlDays * 24 * 60 * 60 * 1000;
+  let deleted = 0;
+  for (const j of listJobs(env)) {
+    if (j.status === "running") continue;
+    const mtimeMs = fs.statSync(j.path, { throwIfNoEntry: false })?.mtimeMs ?? null;
+    if (mtimeMs !== null && mtimeMs < cutoffMs) {
+      fs.rmSync(j.path, { force: true });
+      deleted += 1;
+    }
+  }
+  if (deleted > 0) {
+    rebuildJobIndex(env);
+  }
+  return { deleted };
 }
 
 /**
@@ -192,10 +236,6 @@ export function cleanupJobs(env = process.env, opts = {}) {
     deleted += 1;
   }
   // 重建索引，清掉孤儿条目
-  const index = {};
-  for (const j of listJobs(env)) {
-    index[j.jobId] = { host: j.host, target: j.target, workspaceHash: j.workspaceHash, path: j.path };
-  }
-  writeJobIndex(index, env);
+  const index = rebuildJobIndex(env);
   return { deleted, remaining: Object.keys(index).length };
 }

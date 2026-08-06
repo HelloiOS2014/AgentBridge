@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
-import { cleanupJobs, listJobs, lookupJob, newJobId, registerJob, stateReport } from "../src/core/jobs.mjs";
+import { cleanupJobs, listJobs, lookupJob, newJobId, pruneExpiredJobs, registerJob, stateReport } from "../src/core/jobs.mjs";
 import { ensureDir } from "../src/core/paths.mjs";
 
 describe("jobs uuid index", () => {
@@ -131,5 +131,79 @@ describe("jobs list / report / cleanup", () => {
     assert.equal(res.remaining, 0);
     assert.equal(fs.existsSync(jobFile), false);
     assert.equal(lookupJob(id, env), null); // 索引已重建，不再有孤儿条目
+  });
+});
+
+describe("jobs ttl prune (T1.4)", () => {
+  function makeEnv(extra = {}) {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-state-"));
+    return { AGENT_BRIDGE_STATE_DIR: path.join(home, "state"), AGENT_BRIDGE_HOME: home, ...extra };
+  }
+  function seed(env, host, target, ws, id, extra = {}) {
+    const jobFile = path.join(env.AGENT_BRIDGE_STATE_DIR, host, target, ws, "jobs", `${id}.json`);
+    ensureDir(path.dirname(jobFile));
+    fs.writeFileSync(jobFile, JSON.stringify({ id, status: "completed", kind: "plan", summary: "s", host, target, ...extra }, null, 2), "utf8");
+    return jobFile;
+  }
+  const TEN_DAYS_MS = 10 * 24 * 60 * 60 * 1000;
+
+  it("listJobs includes status field", () => {
+    const env = makeEnv();
+    const id = newJobId();
+    seed(env, "codex", "claude", "ws", id, { status: "failed" });
+    const jobs = listJobs(env);
+    assert.equal(jobs.length, 1);
+    assert.equal(jobs[0].status, "failed");
+  });
+
+  it("pruneExpiredJobs deletes old jobs and rebuilds index", () => {
+    const env = makeEnv();
+    const oldId = newJobId();
+    const oldFile = seed(env, "codex", "claude", "ws1", oldId);
+    const newId = newJobId();
+    const newFile = seed(env, "codex", "claude", "ws1", newId);
+    registerJob({ id: oldId, host: "codex", target: "claude", workspaceHash: "ws1", jobFile: oldFile, env });
+    const old = new Date(Date.now() - TEN_DAYS_MS);
+    fs.utimesSync(oldFile, old, old);
+    const res = pruneExpiredJobs(env, 7);
+    assert.equal(res.deleted, 1);
+    assert.equal(fs.existsSync(oldFile), false);
+    assert.equal(fs.existsSync(newFile), true);
+    assert.equal(lookupJob(oldId, env), null); // 索引已重建，无孤儿条目
+  });
+
+  it("running jobs are never pruned", () => {
+    const env = makeEnv();
+    const id = newJobId();
+    const jobFile = seed(env, "codex", "claude", "ws", id, { status: "running" });
+    const old = new Date(Date.now() - TEN_DAYS_MS);
+    fs.utimesSync(jobFile, old, old);
+    const res = pruneExpiredJobs(env, 7);
+    assert.equal(res.deleted, 0);
+    assert.equal(fs.existsSync(jobFile), true);
+  });
+
+  it("cancelled and completed jobs are pruned", () => {
+    const env = makeEnv();
+    const cancelled = newJobId();
+    const completed = newJobId();
+    const cFile = seed(env, "codex", "claude", "ws", cancelled, { status: "cancelled" });
+    const dFile = seed(env, "codex", "claude", "ws", completed, { status: "completed" });
+    const old = new Date(Date.now() - TEN_DAYS_MS);
+    fs.utimesSync(cFile, old, old);
+    fs.utimesSync(dFile, old, old);
+    const res = pruneExpiredJobs(env, 7);
+    assert.equal(res.deleted, 2);
+  });
+
+  it("TTL <= 0 disables pruning", () => {
+    const env = makeEnv({ AGENT_BRIDGE_JOB_TTL_DAYS: "0" });
+    const id = newJobId();
+    const jobFile = seed(env, "codex", "claude", "ws", id);
+    const old = new Date(Date.now() - TEN_DAYS_MS);
+    fs.utimesSync(jobFile, old, old);
+    assert.equal(pruneExpiredJobs(env).deleted, 0);
+    assert.equal(pruneExpiredJobs(env, 0).deleted, 0);
+    assert.equal(fs.existsSync(jobFile), true);
   });
 });
