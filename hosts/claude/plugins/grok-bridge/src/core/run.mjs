@@ -194,7 +194,8 @@ export async function runDelegation(req) {
       cwd,
       model: req.model,
       env: req.env, // 显式层直通；无 env 的调用者（CLI 路径）由 adapter 按 allowlist 过滤继承层
-      attachments: snapshotAttachments.length ? snapshotAttachments : undefined
+      // codex 等原生图片输入需要放置后的绝对路径（-i）；antigravity 快照附件由 adapter 内处理
+      attachments: placed.length ? placed : snapshotAttachments.length ? snapshotAttachments : undefined
     });
 
     if (useWorkspaceProbe && before) {

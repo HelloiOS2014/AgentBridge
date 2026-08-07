@@ -58,7 +58,8 @@ export function buildApprovalArgs() {
  *   prompt: string,
  *   cwd: string,
  *   base?: string,
- *   lastMessageFile?: string | null
+ *   lastMessageFile?: string | null,
+ *   attachments?: Array<{ placedPath?: string | null, originalPath?: string | null }>
  * }} options
  */
 export function buildCodexArgs(options = {}) {
@@ -67,6 +68,10 @@ export function buildCodexArgs(options = {}) {
   const cwd = options.cwd || process.cwd();
   const approval = buildApprovalArgs();
   const out = options.lastMessageFile ? ["-o", options.lastMessageFile] : [];
+  // Codex 原生图片输入：-i <file>（可重复）。带 -i 时 prompt 走 stdin（实测：位置参数不再被当作 prompt）。
+  const images = (options.attachments ?? [])
+    .map((a) => a.placedPath ?? a.originalPath)
+    .filter(Boolean);
 
   /** @type {string[]} */
   let args;
@@ -87,7 +92,12 @@ export function buildCodexArgs(options = {}) {
     if (options.model) {
       args.push("-m", options.model);
     }
-    args.push(options.prompt ?? "");
+    for (const image of images) {
+      args.push("-i", image);
+    }
+    if (images.length === 0) {
+      args.push(options.prompt ?? "");
+    }
   }
 
   assertNoForbiddenFlags(args);
@@ -172,13 +182,18 @@ export async function runCodex(req) {
     prompt: req.prompt,
     cwd: req.cwd,
     base: req.base,
-    lastMessageFile
+    lastMessageFile,
+    attachments: req.attachments
   });
   const env = buildTargetEnv(req.env);
+
+  // -i 模式（图片附件）下 prompt 走 stdin：位置参数不再被当作 prompt（实测）
+  const stdin = args.includes("-i") ? req.prompt : undefined;
 
   const result = await runCommand(codexBin, args, {
     cwd: req.cwd,
     env,
+    stdin,
     timeoutMs: req.timeoutMs
   });
 
