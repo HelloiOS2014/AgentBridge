@@ -28,7 +28,7 @@ Delegate **read-only code/design review** to local **Antigravity**.
 The wrapper and engine self-bootstrap from the antigravity-bridge plugin on first use (no manual install command).
 
 # Self-bootstrap: install engine from plugin on first use (idempotent, version-guarded)
-AB_PLUGIN_VERSION="$(find "$HOME/.grok" -path "*antigravity-bridge*" -name version -type f -not -path "*/.git/*" 2>/dev/null | head -n1)"
+AB_PLUGIN_VERSION="$(find "$HOME/.grok" -path "*antigravity-bridge*" -name version -type f -not -path "*/.git/*" 2>/dev/null | sort -V | tail -n1)"
 if [ -n "$AB_PLUGIN_VERSION" ] && { [ ! -x "$HOME/.agent-bridge/bin/agent-bridge-grok" ] || [ "$(cat "$HOME/.agent-bridge/engine/version" 2>/dev/null)" != "$(cat "$AB_PLUGIN_VERSION")" ]; }; then
   AB_PLUGIN="$(dirname "$AB_PLUGIN_VERSION")"
   rm -rf "$HOME/.agent-bridge/engine" && mkdir -p "$HOME/.agent-bridge/engine" "$(dirname "$HOME/.agent-bridge/bin/agent-bridge-grok")" && \

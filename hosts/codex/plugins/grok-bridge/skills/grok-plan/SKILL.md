@@ -30,7 +30,7 @@ Delegate **read-only planning** to local **Grok Build** via AgentBridge.
 Use the host wrapper (installed by the grok-bridge plugin's self-bootstrap on first use; no manual install command needed). Prefer the absolute path below; do not require the user to export env vars.
 
 # Self-bootstrap: install engine from plugin on first use (idempotent, version-guarded)
-AB_PLUGIN_VERSION="$(find "$HOME/.codex" -path "*grok-bridge*" -name version -type f -not -path "*/.git/*" 2>/dev/null | head -n1)"
+AB_PLUGIN_VERSION="$(find "$HOME/.codex" -path "*grok-bridge*" -name version -type f -not -path "*/.git/*" 2>/dev/null | sort -V | tail -n1)"
 if [ -n "$AB_PLUGIN_VERSION" ] && { [ ! -x "$HOME/.agent-bridge/bin/agent-bridge-codex" ] || [ "$(cat "$HOME/.agent-bridge/engine/version" 2>/dev/null)" != "$(cat "$AB_PLUGIN_VERSION")" ]; }; then
   AB_PLUGIN="$(dirname "$AB_PLUGIN_VERSION")"
   rm -rf "$HOME/.agent-bridge/engine" && mkdir -p "$HOME/.agent-bridge/engine" "$(dirname "$HOME/.agent-bridge/bin/agent-bridge-codex")" && \

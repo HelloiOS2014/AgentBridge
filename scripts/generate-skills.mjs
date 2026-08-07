@@ -89,7 +89,7 @@ export function renderBootstrapBlock(host, target) {
   const engine = ENGINE_TARGET.engine;
   return [
     `# Self-bootstrap: install engine from plugin on first use (idempotent, version-guarded)`,
-    `AB_PLUGIN_VERSION="$(find "${findRoot}" -path "*${target}-bridge*" -name version -type f -not -path "*/.git/*" 2>/dev/null | head -n1)"`,
+    `AB_PLUGIN_VERSION="$(find "${findRoot}" -path "*${target}-bridge*" -name version -type f -not -path "*/.git/*" 2>/dev/null | sort -V | tail -n1)"`,
     `if [ -n "$AB_PLUGIN_VERSION" ] && { [ ! -x "${wrapper}" ] || [ "$(cat "${engine}/version" 2>/dev/null)" != "$(cat "$AB_PLUGIN_VERSION")" ]; }; then`,
     `  AB_PLUGIN="$(dirname "$AB_PLUGIN_VERSION")"`,
     `  rm -rf "${engine}" && mkdir -p "${engine}" "$(dirname "${wrapper}")" && \\`,
