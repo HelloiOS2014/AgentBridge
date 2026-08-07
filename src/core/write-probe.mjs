@@ -28,6 +28,10 @@ export function compareFingerprints(pair) {
   }
   const beforeLines = new Set(pair.before.porcelain.split("\n").filter(Boolean));
   const afterLines = pair.after.porcelain.split("\n").filter(Boolean);
-  const touched = afterLines.filter((line) => !beforeLines.has(line)).map((line) => line.slice(3).trim());
+  const touched = afterLines
+    .filter((line) => !beforeLines.has(line))
+    .map((line) => line.slice(3).trim())
+    // 桥自己的附件暂存文件（--attach 放置/清理）不算篡改：并发委派可能同时放置/删除
+    .filter((filePath) => !filePath.includes("agent-bridge-attach-"));
   return { ok: false, skipped: false, touchedFiles: touched.length ? touched : ["(git status changed)"] };
 }
