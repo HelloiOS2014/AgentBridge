@@ -160,11 +160,29 @@ function assertVersionBumped() {
   }
 }
 
+/**
+ * marketplace 清单版本同步：Claude 插件清单按版本分发（claude plugin update 读它），
+ * 必须与 package.json 一致，否则用户永远看不到新版本。
+ */
+function syncMarketplaceManifests(version) {
+  const manifestPath = path.join(root, ".claude-plugin", "marketplace.json");
+  if (!fs.existsSync(manifestPath)) {
+    return;
+  }
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  manifest.metadata.version = version;
+  for (const plugin of manifest.plugins ?? []) {
+    plugin.version = version;
+  }
+  fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+}
+
 function main() {
   const dry = process.argv.includes("--dry-run");
   let count = 0;
   if (!dry) {
     assertVersionBumped();
+    syncMarketplaceManifests(JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")).version);
   }
 
   for (const host of ["codex", "claude", "grok"]) {
