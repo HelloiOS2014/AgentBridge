@@ -81,6 +81,19 @@ describe("codex adapter", () => {
     assert.ok(args.includes("--uncommitted"));
   });
 
+  it("attachments become -i image flags; prompt omitted from argv (stdin)", () => {
+    const args = buildCodexArgs({
+      kind: "plan",
+      prompt: "analyze",
+      cwd: "/tmp/proj",
+      attachments: [{ placedPath: "/tmp/proj/agent-bridge-attach-0-img.jpeg", originalPath: "/x/img.jpeg" }]
+    });
+    const iIdx = args.indexOf("-i");
+    assert.ok(iIdx >= 0);
+    assert.equal(args[iIdx + 1], "/tmp/proj/agent-bridge-attach-0-img.jpeg");
+    assert.ok(!args.includes("analyze"), "prompt 不再作为位置参数（走 stdin）");
+  });
+
   it("setup + plan with fake", async () => {
     const env = { ...process.env, AGENT_BRIDGE_CODEX_BIN: fakeCodex };
     const s = await setupCodex({ env });
