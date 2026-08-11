@@ -42,7 +42,15 @@ codex plugin marketplace add https://github.com/HelloiOS2014/AgentBridge --ref m
 
 更新插件后，**下次触发 skill 自动完成引擎升级**：自举检测插件版本 ≠ 引擎版本 → 自动覆盖 `~/.agent-bridge/engine/` 与 wrapper。无需任何手动命令。
 
-> ⚠️ **两层更新别混淆**：`/plugin update` 只更新插件缓存；**运行中的引擎（`~/.agent-bridge/engine/`）只在 skill 被触发时由自举升级**。更新后若 `agent-bridge version` 仍是旧版本号，属正常——触发一次 skill 即可。若引擎版本过旧（< 0.1.6）且缓存有多个版本目录，请用新插件触发（旧自举的 find 可能挑到旧版本永不升级）。
+> ⚠️ **两层更新别混淆**：`/plugin update` 只更新插件缓存；**运行中的引擎（`~/.agent-bridge/engine/`）需要显式更新**。更新插件后执行：
+>
+> ```bash
+> agent-bridge update --json          # 引擎 ≥ 0.1.7 后可用（wrapper 直接调）
+> # 旧引擎（< 0.1.7）不认识 update 命令——直接用插件里的新引擎：
+> node "$(dirname "$(find ~/.claude/plugins -path '*antigravity-bridge*' -name version -type f 2>/dev/null | sort -V | tail -n1)")/src/cli.mjs" update --json
+> ```
+>
+> `agent-bridge update` 从已安装插件（最高版本）重建引擎与 wrapper——不依赖 skill 触发时机，任何引擎版本都能用插件 src 形式执行。skill 首次触发的自举仍会兜底升级，但不再作为主路径。
 
 **发布侧（维护者）**：改引擎/模板 → **bump `package.json` version**（自举按版本决定是否覆盖用户引擎；不 bump 用户机器不更新，`generate:skills` 会强制拒绝）→ `npm run generate:skills` → `npm run check:manifest` → commit + push。
 
