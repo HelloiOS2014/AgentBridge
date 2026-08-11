@@ -1,6 +1,6 @@
 import { isHostId, isTargetId } from "./ids.mjs";
 
-const META = new Set(["doctor", "install", "help", "version"]);
+const META = new Set(["doctor", "install", "update", "help", "version"]);
 const COMMANDS = new Set([
   "setup",
   "plan",
@@ -14,6 +14,7 @@ const COMMANDS = new Set([
   "cleanup",
   "doctor",
   "install",
+  "update",
   "help",
   "version"
 ]);
@@ -230,6 +231,7 @@ export function usageText() {
     "  agent-bridge cleanup [--host <host>] [--target <target>] [--all] [--json]",
     "  agent-bridge doctor [--host <host>] [--json]",
     "  agent-bridge install --host <host> [--targets a,b] [--list] [--remove [target]] [--apply] [--dry-run]",
+    "  agent-bridge update [--json]   (explicit engine update from installed plugins)",
     "  agent-bridge help",
     "",
     "Options: --json --prompt <text> --model <model> --cwd <dir> --write --attach <abs-path> (repeatable)",

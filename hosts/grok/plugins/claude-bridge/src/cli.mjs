@@ -8,6 +8,7 @@ import { allowedTargets, isHostId, isTargetId } from "./core/ids.mjs";
 import { runInstall, resolveInstallTargets, runUninstall } from "./core/install.mjs";
 import { cleanupJobs, listJobs, lookupJob, newJobId, stateReport } from "./core/jobs.mjs";
 import { truncateByBytes } from "./core/git-context.mjs";
+import { runSelfUpdate } from "./core/self-update.mjs";
 import { runDoctor } from "./core/doctor.mjs";
 import { packageRoot } from "./core/paths.mjs";
 import { runDelegation, persistJob } from "./core/run.mjs";
@@ -207,6 +208,29 @@ async function main() {
       }, asJson);
     }
     return;
+  }
+
+  if (command === "update") {
+    // 显式更新引擎：从已安装插件（最高版本）重建——不依赖 skill 触发/自举时机
+    const res = runSelfUpdate(process.env);
+    const updated = res.updated.length > 0;
+    emit(
+      {
+        status: "completed",
+        kind: "update",
+        summary: updated
+          ? `Engine updated ${res.from ?? "none"} → ${res.to}`
+          : res.to
+            ? `Engine already at latest (${res.to})`
+            : "No AgentBridge plugins found in plugin cache",
+        from: res.from,
+        to: res.to,
+        updated: res.updated,
+        engine: res.engine
+      },
+      asJson
+    );
+    process.exit(EXIT.OK);
   }
 
   if (command === "storage") {
