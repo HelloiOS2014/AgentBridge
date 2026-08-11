@@ -23,6 +23,19 @@ describe("grok adapter", () => {
     assert.doesNotThrow(() => assertNoForbiddenFlags(args));
   });
 
+  it("write argv grants edit+shell tools (search_replace/run_terminal_cmd)", () => {
+    const args = buildGrokArgs({ kind: "rescue", prompt: "fix", write: true });
+    const toolsIdx = args.indexOf("--tools");
+    assert.ok(toolsIdx >= 0);
+    const tools = args[toolsIdx + 1].split(",");
+    for (const t of ["read_file", "grep", "list_dir", "search_replace", "run_terminal_cmd"]) {
+      assert.ok(tools.includes(t), `missing tool ${t}`);
+    }
+    assert.ok(args.includes("acceptEdits"));
+    assert.ok(args.includes("--deny"));
+    assert.doesNotThrow(() => assertNoForbiddenFlags(args));
+  });
+
   it("setup + plan with fake", async () => {
     const env = { ...process.env, AGENT_BRIDGE_GROK_BIN: fakeGrok };
     const s = await setupGrok({ env });

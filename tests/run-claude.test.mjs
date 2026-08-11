@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -81,4 +82,34 @@ describe("runDelegation claude", () => {
     assert.equal(jobs[0].jobId, result.jobId, "new job kept");
   });
 
+});
+
+describe("write task output detection", () => {
+  it("rescue --write with zero workspace change is flagged no_output", async () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-noout-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ab-noout-ws-"));
+    spawnSync("git", ["init", "-q"], { cwd: dir, encoding: "utf8" });
+    fs.writeFileSync(path.join(dir, "a.txt"), "a\n");
+    spawnSync("git", ["add", "."], { cwd: dir });
+    spawnSync("git", ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init"], { cwd: dir, encoding: "utf8" });
+
+    const result = await runDelegation({
+      host: "codex",
+      target: "claude",
+      command: "rescue",
+      write: true,
+      prompt: "fix something",
+      cwd: dir,
+      env: {
+        ...process.env,
+        AGENT_BRIDGE_HOME: home,
+        AGENT_BRIDGE_STATE_DIR: path.join(home, "state"),
+        AGENT_BRIDGE_CLAUDE_BIN: fakeClaude
+      }
+    });
+    // fake claude 不产生任何文件变化 → 零产出应被如实标记
+    assert.equal(result.noOutput, true);
+    assert.equal(result.errorCode, "no_output");
+    assert.match(result.summary, /零产出/);
+  });
 });

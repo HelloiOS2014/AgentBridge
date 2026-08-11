@@ -68,10 +68,19 @@ export function buildGrokArgs(options = {}) {
       "Write(*)"
     );
   } else {
-    // Write path: still no bare yolo; allow edits with acceptEdits-style automation via allow rules is complex —
-    // use permission-mode dontAsk is too strict for writes. Design: never bare yolo.
-    // Use acceptEdits for file edits without full yolo (Grok docs).
-    args.push("--permission-mode", "acceptEdits", "--disallowed-tools", "Agent");
+    // Write path: 必须显式授予编辑与 shell 工具（内部 ID：search_replace / run_terminal_cmd）——
+    // 只传 permission-mode 时默认工具集不含编辑工具，模型只会口头声称（零产出）。
+    // acceptEdits 自动批准文件编辑；仍禁 bare yolo 与子 agent。
+    args.push(
+      "--tools",
+      "read_file,grep,list_dir,search_replace,run_terminal_cmd",
+      "--disallowed-tools",
+      "Agent",
+      "--permission-mode",
+      "acceptEdits",
+      "--deny",
+      "MCPTool(*)"
+    );
   }
 
   if (options.model) {

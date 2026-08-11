@@ -181,11 +181,15 @@ export async function runDelegation(req) {
   }
 
   // Workspace WriteProbe for tool/sandbox targets; Antigravity uses isolation probe inside adapter.
-  const useWorkspaceProbe = !write && target !== "antigravity";
-  const before = useWorkspaceProbe ? await gitFingerprint(cwd, env) : null;
+  // write 任务也采集 before——供"零产出检测"（目标声称完成但工作区无变化）。
+  const probeWorkspace = target !== "antigravity";
+  const useWorkspaceProbe = !write && probeWorkspace;
+  const before = probeWorkspace ? await gitFingerprint(cwd, env) : null;
 
   let result;
   let probe = null;
+  // write 任务也采集前后指纹：仅用于"零产出检测"（目标声称完成但工作区无任何变化），不判违规
+  const writeOutputProbe = write && target !== "antigravity" && before !== null;
   try {
     result = await RUNNERS[target]({
       kind,
@@ -202,6 +206,10 @@ export async function runDelegation(req) {
       const after = await gitFingerprint(cwd, env);
       probe = compareFingerprints({ before, after });
     }
+    if (writeOutputProbe) {
+      const after = await gitFingerprint(cwd, env);
+      probe = { ...compareFingerprints({ before, after }), writeOutput: true };
+    }
   } finally {
     // 只读任务：委派后删除（失败也删）；write 任务保留（是产出）
     if (!write && placed.length) {
@@ -211,7 +219,9 @@ export async function runDelegation(req) {
 
   const isolationViolation = target === "antigravity" && !write && (result.touchedFiles?.length ?? 0) > 0;
   const failedProbe = (probe && !probe.ok && !probe.skipped) || isolationViolation;
-  const status = result.ok && !failedProbe ? "completed" : "failed";
+  // 零产出：write 任务工作区无任何变化（目标只口头声称）——如实标记，不当作成功
+  const noOutput = writeOutputProbe && probe !== null && probe.ok && !probe.skipped;
+  const status = result.ok && !failedProbe && !noOutput ? "completed" : "failed";
   const caps = adapter.capabilities();
   // --worker 固定 jobId：persistJob 覆盖父进程写的 running 记录（同 id 同文件）
   const id = req.jobId ?? newJobId();
@@ -224,9 +234,12 @@ export async function runDelegation(req) {
     jobId: id,
     summary: failedProbe
       ? `Read-only violation: ${(result.touchedFiles || probe?.touchedFiles || []).join(", ")}`
-      : result.ok
-        ? String(result.output).slice(0, 240)
-        : result.error || `${target} failed`,
+      : noOutput
+        ? `零产出：目标声称完成但工作区无任何变化 — ${String(result.output).slice(0, 160)}`
+        : result.ok
+          ? String(result.output).slice(0, 240)
+          : result.error || `${target} failed`,
+    noOutput: noOutput || undefined,
     rendered: result.output,
     rawOutput: result.rawOutput,
     sessionId: result.sessionId,
@@ -256,9 +269,11 @@ export async function runDelegation(req) {
     },
     errorCode: failedProbe
       ? "write_probe_failed"
-      : result.ok
-        ? null
-        : `${target}_failed`,
+      : noOutput
+        ? "no_output"
+        : result.ok
+          ? null
+          : `${target}_failed`,
     errorMessage: failedProbe
       ? "Read-only command modified the workspace (or isolation snapshot)"
       : result.error
