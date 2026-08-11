@@ -62,3 +62,12 @@ console.log(JSON.stringify({
   num_turns: 1,
   usage: { input_tokens: 1, output_tokens: 1 }
 }));
+
+if (process.env.FAKE_AGY_SCRATCH_WRITE && process.env.AGENT_BRIDGE_ANTIGRAVITY_SCRATCH) {
+  fs.mkdirSync(process.env.AGENT_BRIDGE_ANTIGRAVITY_SCRATCH, { recursive: true });
+  fs.writeFileSync(
+    path.join(process.env.AGENT_BRIDGE_ANTIGRAVITY_SCRATCH, process.env.FAKE_AGY_SCRATCH_WRITE),
+    "scratch output\n",
+    "utf8"
+  );
+}

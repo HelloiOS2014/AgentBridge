@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { assertNoForbiddenFlags } from "../core/safety.mjs";
 import { buildTargetEnv } from "../core/env-allowlist.mjs";
@@ -186,12 +187,58 @@ export async function runAntigravity(req) {
         ].join("\n")
       : req.prompt;
     const args = buildAgyArgs({ write: true, kind: req.kind, prompt: writePrompt, printTimeout });
+
+    // agy headless 无工作区绑定：模型裸调用可靠地把产出写进自己的默认工作区
+    // （~/.gemini/antigravity-cli/scratch）。桥在运行前后对比 scratch，
+    // 把本次新增的文件搬进 worktree——产出归位，审计可见。
+    const scratchDir =
+      env.AGENT_BRIDGE_ANTIGRAVITY_SCRATCH || path.join(os.homedir(), ".gemini", "antigravity-cli", "scratch");
+    const scratchBefore = new Set();
+    if (fs.existsSync(scratchDir)) {
+      const walk = (dir) => {
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+          const p = path.join(dir, entry.name);
+          if (entry.isDirectory()) {
+            walk(p);
+          } else if (entry.isFile()) {
+            scratchBefore.add(p);
+          }
+        }
+      };
+      walk(scratchDir);
+    }
+
     const result = await runCommand(agyBin, args, {
       cwd: runCwd,
       env,
       timeoutMs: req.timeoutMs
     });
     const summary = summarizeAgyResult(result);
+
+    // 搬移 scratch 新增文件 → worktree（或 fallback 真实目录），保持相对路径
+    const relocateTarget = worktree ? worktree.worktreePath : req.cwd;
+    if (fs.existsSync(scratchDir)) {
+      const walk = (dir) => {
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+          const p = path.join(dir, entry.name);
+          if (entry.isDirectory()) {
+            walk(p);
+          } else if (entry.isFile() && !scratchBefore.has(p)) {
+            const rel = path.relative(scratchDir, p);
+            const dest = path.join(relocateTarget, rel);
+            fs.mkdirSync(path.dirname(dest), { recursive: true });
+            try {
+              fs.copyFileSync(p, dest);
+              fs.unlinkSync(p);
+            } catch {
+              // 搬移失败不阻塞：保留在 scratch，审计按实际可见为准
+            }
+          }
+        }
+      };
+      walk(scratchDir);
+    }
+
     const touchedFiles = worktree
       ? await collectGitTouchedFiles(worktree.worktreePath, { env })
       : [];

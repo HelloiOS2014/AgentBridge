@@ -342,3 +342,38 @@ describe("antigravity write zero-output", () => {
     assert.equal(result.status, "completed");
   });
 });
+
+describe("antigravity write scratch relocation", () => {
+  it("scratch output is relocated into the worktree and counts as output", async () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-agy-reloc-"));
+    const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "ab-agy-scr-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agy-reloc-ws-"));
+    spawnSync("git", ["init", "-q"], { cwd: dir, encoding: "utf8" });
+    fs.writeFileSync(path.join(dir, "a.txt"), "a\n");
+    spawnSync("git", ["add", "."], { cwd: dir });
+    spawnSync("git", ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init"], { cwd: dir, encoding: "utf8" });
+
+    const result = await runDelegation({
+      host: "codex",
+      target: "antigravity",
+      command: "rescue",
+      write: true,
+      prompt: "create file",
+      cwd: dir,
+      env: {
+        ...process.env,
+        AGENT_BRIDGE_HOME: home,
+        AGENT_BRIDGE_STATE_DIR: path.join(home, "state"),
+        AGENT_BRIDGE_ANTIGRAVITY_BIN: fakeAgy,
+        AGENT_BRIDGE_ANTIGRAVITY_SCRATCH: scratch,
+        FAKE_AGY_SCRATCH_WRITE: "made.txt"
+      }
+    });
+    assert.equal(result.status, "completed", result.errorMessage);
+    assert.equal(result.noOutput, undefined);
+    assert.ok(result.touchedFiles.includes("made.txt"));
+    assert.ok(result.worktree, "worktree present");
+    assert.ok(fs.existsSync(path.join(result.worktree.path, "made.txt")), "file relocated into worktree");
+    assert.equal(fs.existsSync(path.join(scratch, "made.txt")), false, "moved out of scratch");
+  });
+});
