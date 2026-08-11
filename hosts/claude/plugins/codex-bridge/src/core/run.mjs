@@ -218,7 +218,8 @@ export async function runDelegation(req) {
   }
 
   const isolationViolation = target === "antigravity" && !write && (result.touchedFiles?.length ?? 0) > 0;
-  const failedProbe = (probe && !probe.ok && !probe.skipped) || isolationViolation;
+  // write 探针只用于零产出检测，"有变化"是正常产出，不构成只读违规
+  const failedProbe = (!write && probe && !probe.ok && !probe.skipped) || isolationViolation;
   // 零产出：write 任务工作区无任何变化（目标只口头声称）——如实标记，不当作成功
   const noOutput = writeOutputProbe && probe !== null && probe.ok && !probe.skipped;
   const status = result.ok && !failedProbe && !noOutput ? "completed" : "failed";

@@ -68,18 +68,25 @@ export function buildGrokArgs(options = {}) {
       "Write(*)"
     );
   } else {
-    // Write path: 必须显式授予编辑与 shell 工具（内部 ID：search_replace / run_terminal_cmd）——
-    // 只传 permission-mode 时默认工具集不含编辑工具，模型只会口头声称（零产出）。
-    // acceptEdits 自动批准文件编辑；仍禁 bare yolo 与子 agent。
+    // Write path: 显式授予编辑与 shell 工具 + allow 规则免审批。
+    // 实测：headless 下无交互审批，acceptEdits 对 search_replace 仍被自动拒绝（"User cancelled"），
+    // 必须 --allow Edit/Write/Bash 规则；工具 ID 以实测为准（run_terminal_command 而非文档的 run_terminal_cmd）。
+    // 仍禁 bare yolo 与子 agent。
     args.push(
       "--tools",
-      "read_file,grep,list_dir,search_replace,run_terminal_cmd",
+      "read_file,grep,list_dir,search_replace,run_terminal_command",
       "--disallowed-tools",
       "Agent",
       "--permission-mode",
       "acceptEdits",
       "--deny",
-      "MCPTool(*)"
+      "MCPTool(*)",
+      "--allow",
+      "Edit(**)",
+      "--allow",
+      "Write(**)",
+      "--allow",
+      "Bash(*)"
     );
   }
 

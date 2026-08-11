@@ -23,16 +23,20 @@ describe("grok adapter", () => {
     assert.doesNotThrow(() => assertNoForbiddenFlags(args));
   });
 
-  it("write argv grants edit+shell tools (search_replace/run_terminal_cmd)", () => {
+  it("write argv grants edit+shell tools and allow rules (no headless auto-deny)", () => {
     const args = buildGrokArgs({ kind: "rescue", prompt: "fix", write: true });
     const toolsIdx = args.indexOf("--tools");
     assert.ok(toolsIdx >= 0);
     const tools = args[toolsIdx + 1].split(",");
-    for (const t of ["read_file", "grep", "list_dir", "search_replace", "run_terminal_cmd"]) {
+    for (const t of ["read_file", "grep", "list_dir", "search_replace", "run_terminal_command"]) {
       assert.ok(tools.includes(t), `missing tool ${t}`);
     }
     assert.ok(args.includes("acceptEdits"));
     assert.ok(args.includes("--deny"));
+    // headless 免审批：Edit/Write/Bash allow 规则（acceptEdits 对 search_replace 仍会被自动拒绝）
+    assert.ok(args.includes("Edit(**)"));
+    assert.ok(args.includes("Write(**)"));
+    assert.ok(args.includes("Bash(*)"));
     assert.doesNotThrow(() => assertNoForbiddenFlags(args));
   });
 
