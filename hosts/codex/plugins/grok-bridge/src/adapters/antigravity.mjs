@@ -4,7 +4,7 @@ import path from "node:path";
 import { assertNoForbiddenFlags } from "../core/safety.mjs";
 import { buildTargetEnv } from "../core/env-allowlist.mjs";
 import { binaryAvailable, runCommand } from "../core/process.mjs";
-import { diffDirFiles, snapshotDirFiles } from "../core/write-probe.mjs";
+import { compareFingerprints, diffDirFiles, gitFingerprint, snapshotDirFiles } from "../core/write-probe.mjs";
 import {
   collectGitTouchedFiles,
   isolationMetadata,
@@ -204,6 +204,9 @@ export async function runAntigravity(req) {
     // 非 git fallback：模型可能直接写 req.cwd（而非 scratch）——运行前后文件清单快照检测直接写。
     // ⚠️ 必须在 runCommand 之前拍 before（否则模型已写，diff 恒空）。
     const workspaceBefore = worktree ? null : snapshotDirFiles(req.cwd);
+    // 主仓库双审计：worktree 存在时，模型仍可能绕过隔离直接改主仓库（实测发生）——
+    // 运行前后对比主仓库 git 状态，被改动则如实报告 isolationBypassed，而不是误报零产出。
+    const mainRepoBefore = worktree ? await gitFingerprint(req.cwd, env) : null;
     const relocateTarget = worktree ? worktree.worktreePath : req.cwd;
 
     // 中断恢复标记：写任务运行前在 scratch 落 marker（记录目标目录），完成后删除。
@@ -252,6 +255,8 @@ export async function runAntigravity(req) {
       walk(scratchDir);
     }
     const workspaceChanges = worktree ? [] : diffDirFiles(workspaceBefore, req.cwd);
+    // 主仓库被绕过的改动（模型直接写了主仓库）
+    const mainWorkspaceChanges = worktree && mainRepoBefore?.git ? compareFingerprints({ before: mainRepoBefore, after: await gitFingerprint(req.cwd, env) }).touchedFiles ?? [] : [];
     try {
       fs.rmSync(markerPath, { force: true }); // 正常完成：移除中断恢复标记
     } catch {
@@ -277,6 +282,7 @@ export async function runAntigravity(req) {
         : null,
       touchedFiles,
       relocated,
+      mainWorkspaceChanges,
       usage: summary.usage,
       error:
         summary.envelopeError ||

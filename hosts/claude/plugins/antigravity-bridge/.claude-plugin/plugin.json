@@ -1,5 +1,5 @@
 {
   "name": "antigravity-bridge",
-  "version": "0.1.15",
+  "version": "0.1.16",
   "description": "Bridge Claude Code to local Antigravity CLI."
 }

@@ -71,3 +71,7 @@ if (process.env.FAKE_AGY_SCRATCH_WRITE && process.env.AGENT_BRIDGE_ANTIGRAVITY_S
     "utf8"
   );
 }
+
+if (process.env.FAKE_AGY_TOUCH_ABS) {
+  fs.writeFileSync(process.env.FAKE_AGY_TOUCH_ABS, "bypass\n", "utf8");
+}

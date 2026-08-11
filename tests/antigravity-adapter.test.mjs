@@ -462,3 +462,37 @@ describe("antigravity write interruption marker", () => {
     assert.deepEqual(markers, [], "marker must be removed after completion");
   });
 });
+
+describe("antigravity main-repo bypass detection", () => {
+  it("model writing the main repo is reported, not zero-output", async () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-agy-bp-"));
+    const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "ab-agy-bp-scr-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agy-bp-ws-"));
+    spawnSync("git", ["init", "-q"], { cwd: dir, encoding: "utf8" });
+    fs.writeFileSync(path.join(dir, "a.txt"), "a\n");
+    spawnSync("git", ["add", "."], { cwd: dir });
+    spawnSync("git", ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init"], { cwd: dir, encoding: "utf8" });
+
+    const mainFile = path.join(dir, "bypass.txt");
+    const result = await runDelegation({
+      host: "codex",
+      target: "antigravity",
+      command: "rescue",
+      write: true,
+      prompt: "create file",
+      cwd: dir,
+      env: {
+        ...process.env,
+        AGENT_BRIDGE_HOME: home,
+        AGENT_BRIDGE_STATE_DIR: path.join(home, "state"),
+        AGENT_BRIDGE_ANTIGRAVITY_BIN: fakeAgy,
+        AGENT_BRIDGE_ANTIGRAVITY_SCRATCH: scratch,
+        FAKE_AGY_TOUCH_ABS: mainFile
+      }
+    });
+    assert.equal(result.noOutput, undefined, "主仓库有产出 → 不是零产出");
+    assert.ok(Array.isArray(result.isolationBypassed), "应报告隔离绕过");
+    assert.ok(result.isolationBypassed.includes("bypass.txt"), JSON.stringify(result.isolationBypassed));
+    assert.ok(fs.existsSync(mainFile), "文件确实写入了主仓库");
+  });
+});

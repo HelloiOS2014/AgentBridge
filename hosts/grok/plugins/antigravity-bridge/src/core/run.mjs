@@ -255,11 +255,13 @@ export async function runDelegation(req) {
       // antigravity write 走 worktree 审计（result.touchedFiles），过滤桥自己的附件暂存文件。
       noOutput =
         (writeOutputProbe && probe !== null && probe.ok && !probe.skipped) ||
-        // antigravity write：git 走 worktree 审计；非 git fallback 走 scratch 搬移数 + 文件清单快照
+        // antigravity write：git 走 worktree 审计；非 git fallback 走 scratch 搬移数 + 文件清单快照。
+        // worktree 时同时看主仓库是否被绕过（mainWorkspaceChanges）——有产出就不算零产出。
         (write &&
           target === "antigravity" &&
           (result.worktree
-            ? (result.touchedFiles ?? []).filter((f) => !String(f).includes("agent-bridge-attach-")).length === 0
+            ? (result.touchedFiles ?? []).filter((f) => !String(f).includes("agent-bridge-attach-")).length === 0 &&
+              (result.mainWorkspaceChanges ?? []).length === 0
             : (result.relocated ?? []).length === 0 && (result.touchedFiles ?? []).length === 0));
 
       // 有产出或非零产出失败 → 不再重试；仅零产出（模型声称完成但没写）值得再来一次
@@ -275,6 +277,8 @@ export async function runDelegation(req) {
   }
 
   const status = result.ok && !failedProbe && !noOutput ? "completed" : "failed";
+  // 隔离绕过：模型直接改了主仓库（未进 worktree）
+  const isolationBypassed = (result.mainWorkspaceChanges ?? []).length > 0 ? result.mainWorkspaceChanges : undefined;
   const caps = adapter.capabilities();
   // --worker 固定 jobId：persistJob 覆盖父进程写的 running 记录（同 id 同文件）
 
@@ -286,11 +290,13 @@ export async function runDelegation(req) {
     jobId: id,
     summary: failedProbe
       ? `Read-only violation: ${(result.touchedFiles || probe?.touchedFiles || []).join(", ")}`
-      : noOutput
-        ? `零产出：目标声称完成但工作区无任何变化 — ${String(result.output).slice(0, 160)}`
-        : result.ok
-          ? String(result.output).slice(0, 240)
-          : result.error || `${target} failed`,
+      : isolationBypassed
+        ? `⚠️ 隔离绕过：产出写入了主仓库（未进 worktree）：${result.mainWorkspaceChanges.join(", ")} — 请 git checkout 还原或改用 worktree 内版本`
+        : noOutput
+          ? `零产出：目标声称完成但工作区无任何变化 — ${String(result.output).slice(0, 160)}`
+          : result.ok
+            ? String(result.output).slice(0, 240)
+            : result.error || `${target} failed`,
     noOutput: noOutput || undefined,
     rendered: result.output,
     rawOutput: result.rawOutput,
@@ -298,6 +304,7 @@ export async function runDelegation(req) {
     write,
     touchedFiles: result.touchedFiles ?? probe?.touchedFiles ?? [],
     relocated: result.relocated ?? undefined,
+    isolationBypassed,
     worktree: result.worktree ?? null,
     capabilities: caps,
     metadata: {
