@@ -124,3 +124,10 @@ design v2 已吸收：Claude/Agy 现网路径、Grok MCP 陷阱、Codex approval
 ---
 
 **附录结束。规范以 design.md v2 为准。**
+
+### AgentBridge 更新链路（用户侧已知坑）
+
+- **两层更新**：`/plugin update`（或各 Host 的插件更新）只更新插件缓存（`~/.claude/plugins/cache/...`）；**运行中的引擎（`~/.agent-bridge/engine/`）只在 skill 被触发时由自举升级**（版本对比 → 覆盖）。
+- `agent-bridge version` 读的是引擎 `package.json`，不读插件缓存——更新插件后 version 不变是正常现象。
+- **旧引擎（< 0.1.6）自举有 find 歧义 bug**（`find | head -n1` 在缓存有多个版本目录时会挑到旧版本 → 永不升级）。修复在 0.1.6（`sort -V` 取最高版本）。升级遇到"版本不涨"时：用新插件的 skill 触发（或直接执行新插件 SKILL.md 里的自举段）。
+- 排障第一步：`~/.agent-bridge/bin/agent-bridge-claude version --json` 确认引擎版本。

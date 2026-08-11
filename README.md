@@ -42,6 +42,8 @@ codex plugin marketplace add https://github.com/HelloiOS2014/AgentBridge --ref m
 
 更新插件后，**下次触发 skill 自动完成引擎升级**：自举检测插件版本 ≠ 引擎版本 → 自动覆盖 `~/.agent-bridge/engine/` 与 wrapper。无需任何手动命令。
 
+> ⚠️ **两层更新别混淆**：`/plugin update` 只更新插件缓存；**运行中的引擎（`~/.agent-bridge/engine/`）只在 skill 被触发时由自举升级**。更新后若 `agent-bridge version` 仍是旧版本号，属正常——触发一次 skill 即可。若引擎版本过旧（< 0.1.6）且缓存有多个版本目录，请用新插件触发（旧自举的 find 可能挑到旧版本永不升级）。
+
 **发布侧（维护者）**：改引擎/模板 → **bump `package.json` version**（自举按版本决定是否覆盖用户引擎；不 bump 用户机器不更新，`generate:skills` 会强制拒绝）→ `npm run generate:skills` → `npm run check:manifest` → commit + push。
 
 ## 使用示例
