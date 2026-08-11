@@ -431,3 +431,34 @@ describe("antigravity write non-git fallback", () => {
     assert.equal(result.errorCode, "no_output");
   });
 });
+
+describe("antigravity write interruption marker", () => {
+  it("marker is removed after a successful write", async () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-agy-mk-"));
+    const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "ab-agy-mk-scr-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agy-mk-ws-"));
+    spawnSync("git", ["init", "-q"], { cwd: dir, encoding: "utf8" });
+    fs.writeFileSync(path.join(dir, "a.txt"), "a\n");
+    spawnSync("git", ["add", "."], { cwd: dir });
+    spawnSync("git", ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init"], { cwd: dir, encoding: "utf8" });
+
+    const result = await runDelegation({
+      host: "codex",
+      target: "antigravity",
+      command: "rescue",
+      write: true,
+      prompt: "create file",
+      cwd: dir,
+      env: {
+        ...process.env,
+        AGENT_BRIDGE_HOME: home,
+        AGENT_BRIDGE_STATE_DIR: path.join(home, "state"),
+        AGENT_BRIDGE_ANTIGRAVITY_BIN: fakeAgy,
+        AGENT_BRIDGE_ANTIGRAVITY_SCRATCH: scratch
+      }
+    });
+    assert.equal(result.status, "failed"); // 零产出，但不应残留 marker
+    const markers = fs.readdirSync(scratch).filter((f) => f.startsWith(".agent-bridge-run-"));
+    assert.deepEqual(markers, [], "marker must be removed after completion");
+  });
+});

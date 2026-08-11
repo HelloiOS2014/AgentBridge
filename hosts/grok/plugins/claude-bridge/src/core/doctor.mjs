@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { ADAPTERS } from "../adapters/index.mjs";
 import { allowedTargets, HOST_IDS, isHostId } from "./ids.mjs";
@@ -81,6 +82,44 @@ export async function runDoctor(opts = {}) {
     }
   } catch {
     // 版本检测失败不阻塞 doctor
+  }
+  // 中断恢复：扫描 agy scratch 里的过期 marker（写任务中断残留），报告滞留产出
+  try {
+    const scratchDir =
+      env.AGENT_BRIDGE_ANTIGRAVITY_SCRATCH || path.join(os.homedir(), ".gemini", "antigravity-cli", "scratch");
+    if (fs.existsSync(scratchDir)) {
+      const now = Date.now();
+      for (const name of fs.readdirSync(scratchDir)) {
+        if (!name.startsWith(".agent-bridge-run-") || !name.endsWith(".marker")) {
+          continue;
+        }
+        const markerPath = path.join(scratchDir, name);
+        const markerMtime = fs.statSync(markerPath).mtimeMs;
+        if (now - markerMtime <= 5 * 60 * 1000) {
+          continue; // 5 分钟内：可能仍在运行，不报
+        }
+        let info = {};
+        try {
+          info = JSON.parse(fs.readFileSync(markerPath, "utf8"));
+        } catch {
+          // 损坏 marker 也报（文件存在即中断证据）
+        }
+        const stranded = [];
+        for (const f of fs.readdirSync(scratchDir)) {
+          if (f.startsWith(".agent-bridge-run-")) {
+            continue;
+          }
+          if (fs.statSync(path.join(scratchDir, f)).mtimeMs > markerMtime) {
+            stranded.push(f);
+          }
+        }
+        issues.push(
+          `Interrupted antigravity write detected (${name}): ${stranded.length} output file(s) may be stranded in scratch: ${stranded.slice(0, 5).join(", ")}${stranded.length > 5 ? ", ..." : ""} (target was ${info.targetDir ?? "unknown"}). Move them manually or rerun the task.`
+        );
+      }
+    }
+  } catch {
+    // 扫描失败不阻塞 doctor
   }
   if (host) {
     const h = hosts[host];

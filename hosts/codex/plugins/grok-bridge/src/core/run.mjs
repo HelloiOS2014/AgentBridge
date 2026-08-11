@@ -76,6 +76,24 @@ export async function runDelegation(req) {
   const kind = req.command === "adversarial-review" ? "adversarial-review" : req.command;
   const target = req.target;
   const adapter = ADAPTERS[target];
+  // 写任务预落 running 记录（前台也写）：进程中断后 status 可查、产出可定位。
+  // --worker 路径的父进程已写，跳过避免双写。
+  const id = req.jobId ?? newJobId();
+  if (req.command === "rescue" && Boolean(req.write) && !req.jobId) {
+    persistJob(
+      {
+        id,
+        status: "running",
+        kind,
+        target,
+        host,
+        jobId: id,
+        startedAt: new Date().toISOString(),
+        summary: "running (write)"
+      },
+      { host, target, cwd, env }
+    );
+  }
 
   if (!adapter) {
     return {
@@ -248,7 +266,6 @@ export async function runDelegation(req) {
   const status = result.ok && !failedProbe && !noOutput ? "completed" : "failed";
   const caps = adapter.capabilities();
   // --worker 固定 jobId：persistJob 覆盖父进程写的 running 记录（同 id 同文件）
-  const id = req.jobId ?? newJobId();
 
   const payload = {
     status,

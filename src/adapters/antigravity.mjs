@@ -238,6 +238,21 @@ export async function runAntigravity(req) {
     // 非 git fallback：模型可能直接写 req.cwd（而非 scratch）——运行前后文件清单快照检测直接写。
     // ⚠️ 必须在 runCommand 之前拍 before（否则模型已写，diff 恒空）。
     const workspaceBefore = worktree ? null : snapshotWorkspaceFiles(req.cwd);
+    const relocateTarget = worktree ? worktree.worktreePath : req.cwd;
+
+    // 中断恢复标记：写任务运行前在 scratch 落 marker（记录目标目录），完成后删除。
+    // 若进程被杀，marker 留存 → doctor 扫描过期 marker 报告滞留产出，用户可找回。
+    const markerPath = path.join(scratchDir, `.agent-bridge-run-${Date.now()}.marker`);
+    try {
+      fs.mkdirSync(scratchDir, { recursive: true });
+      fs.writeFileSync(
+        markerPath,
+        JSON.stringify({ targetDir: relocateTarget, startedAt: new Date().toISOString() }),
+        "utf8"
+      );
+    } catch {
+      // marker 写失败不阻塞运行
+    }
 
     const result = await runCommand(agyBin, args, {
       cwd: runCwd,
@@ -247,7 +262,6 @@ export async function runAntigravity(req) {
     const summary = summarizeAgyResult(result);
 
     // 搬移 scratch 新增文件 → worktree（或 fallback 真实目录），保持相对路径
-    const relocateTarget = worktree ? worktree.worktreePath : req.cwd;
     const relocated = [];
     if (fs.existsSync(scratchDir)) {
       const walk = (dir) => {
@@ -255,7 +269,7 @@ export async function runAntigravity(req) {
           const p = path.join(dir, entry.name);
           if (entry.isDirectory()) {
             walk(p);
-          } else if (entry.isFile() && !scratchBefore.has(p)) {
+          } else if (entry.isFile() && !scratchBefore.has(p) && !entry.name.startsWith(".agent-bridge-run-")) {
             const rel = path.relative(scratchDir, p);
             const dest = path.join(relocateTarget, rel);
             fs.mkdirSync(path.dirname(dest), { recursive: true });
@@ -272,6 +286,11 @@ export async function runAntigravity(req) {
       walk(scratchDir);
     }
     const workspaceChanges = worktree ? [] : diffWorkspaceFiles(workspaceBefore, req.cwd);
+    try {
+      fs.rmSync(markerPath, { force: true }); // 正常完成：移除中断恢复标记
+    } catch {
+      // 忽略
+    }
 
     const touchedFiles = worktree
       ? await collectGitTouchedFiles(worktree.worktreePath, { env })

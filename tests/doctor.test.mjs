@@ -84,3 +84,35 @@ describe("doctor version drift", () => {
     assert.ok(!report.issues.some((i) => /Engine version/.test(i)), JSON.stringify(report.issues));
   });
 });
+
+describe("doctor interrupted-write scan", () => {
+  it("reports stranded output for a stale marker", async () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-int-"));
+    const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "ab-int-scr-"));
+    const marker = path.join(scratch, ".agent-bridge-run-123.marker");
+    fs.writeFileSync(marker, JSON.stringify({ targetDir: "/tmp/x", startedAt: new Date(Date.now() - 600000).toISOString() }), "utf8");
+    const past = new Date(Date.now() - 600000);
+    fs.utimesSync(marker, past, past); // 6 分钟前 → 过期
+    fs.writeFileSync(path.join(scratch, "stranded.txt"), "leftover\n");
+    const strandedTime = new Date(Date.now() - 10000);
+    fs.utimesSync(path.join(scratch, "stranded.txt"), strandedTime, strandedTime);
+
+    const report = await runDoctor({
+      env: { ...process.env, AGENT_BRIDGE_HOME: home, AGENT_BRIDGE_PLUGIN_ROOT: fs.mkdtempSync(path.join(os.tmpdir(), "ab-int-plug-")), AGENT_BRIDGE_ANTIGRAVITY_SCRATCH: scratch, HOME: home },
+      cwd: process.cwd()
+    });
+    assert.ok(report.issues.some((i) => /Interrupted antigravity write.*stranded\.txt/.test(i)), JSON.stringify(report.issues));
+  });
+
+  it("fresh marker is not reported", async () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-int2-"));
+    const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "ab-int2-scr-"));
+    const marker = path.join(scratch, ".agent-bridge-run-456.marker");
+    fs.writeFileSync(marker, JSON.stringify({ targetDir: "/tmp/x", startedAt: new Date().toISOString() }), "utf8");
+    const report = await runDoctor({
+      env: { ...process.env, AGENT_BRIDGE_HOME: home, AGENT_BRIDGE_PLUGIN_ROOT: fs.mkdtempSync(path.join(os.tmpdir(), "ab-int2-plug-")), AGENT_BRIDGE_ANTIGRAVITY_SCRATCH: scratch, HOME: home },
+      cwd: process.cwd()
+    });
+    assert.ok(!report.issues.some((i) => /Interrupted antigravity write/.test(i)), JSON.stringify(report.issues));
+  });
+});
