@@ -1,6 +1,6 @@
 {
   "name": "grok-bridge",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "description": "Delegate planning, review, and rescue from Codex to local Grok Build via AgentBridge.",
   "skills": "./skills/",
   "interface": {

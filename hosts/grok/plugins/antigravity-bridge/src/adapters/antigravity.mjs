@@ -176,16 +176,9 @@ export async function runAntigravity(req) {
     // to running directly in the real workspace.
     const worktree = await prepareWriteWorktree(req.cwd, { env });
     const runCwd = worktree ? worktree.worktreeCwd : req.cwd;
-    const writePrompt = worktree
-      ? [
-          "AgentBridge Antigravity worktree context:",
-          `- Original workspace: ${worktree.originalCwd}`,
-          `- Worktree: ${worktree.worktreePath} (branch ${worktree.branch})`,
-          "- Changes stay in this worktree for review; do not commit or push.",
-          "",
-          req.prompt
-        ].join("\n")
-      : req.prompt;
+    // ⚠️ 实测：flash 模型看到"worktree/review"前缀 prompt 会空响应不写（3/3 复现）；
+    // 裸用户 prompt 可靠完成（写到 agy 自己的 scratch），产出由下方 scratch 搬移机制归位到 worktree。
+    const writePrompt = req.prompt;
     const args = buildAgyArgs({ write: true, kind: req.kind, prompt: writePrompt, printTimeout });
 
     // agy headless 无工作区绑定：模型裸调用可靠地把产出写进自己的默认工作区
