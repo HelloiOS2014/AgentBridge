@@ -186,49 +186,64 @@ export async function runDelegation(req) {
   const useWorkspaceProbe = !write && probeWorkspace;
   const before = probeWorkspace ? await gitFingerprint(cwd, env) : null;
 
+  // 写任务重试：目标模型（尤其 agy flash）时常"一轮即停/零产出"，重试显著提高完成率。
+  // worktree/工作区在尝试间保留，进度可累积；最多 3 次，每次失败原因如实保留在最后一次结果。
+  const MAX_WRITE_ATTEMPTS = write ? 3 : 1;
   let result;
   let probe = null;
+  let noOutput = false;
+  let failedProbe = false;
   // write 任务也采集前后指纹：仅用于"零产出检测"（目标声称完成但工作区无任何变化），不判违规
   const writeOutputProbe = write && target !== "antigravity" && before !== null;
-  try {
-    result = await RUNNERS[target]({
-      kind,
-      write,
-      prompt: promptOut,
-      cwd,
-      model: req.model,
-      env: req.env, // 显式层直通；无 env 的调用者（CLI 路径）由 adapter 按 allowlist 过滤继承层
-      // codex 等原生图片输入需要放置后的绝对路径（-i）；antigravity 快照附件由 adapter 内处理
-      attachments: placed.length ? placed : snapshotAttachments.length ? snapshotAttachments : undefined
-    });
+  const isolationViolation = () =>
+    target === "antigravity" && !write && (result.touchedFiles?.length ?? 0) > 0;
 
-    if (useWorkspaceProbe && before) {
-      const after = await gitFingerprint(cwd, env);
-      probe = compareFingerprints({ before, after });
-    }
-    if (writeOutputProbe) {
-      const after = await gitFingerprint(cwd, env);
-      probe = { ...compareFingerprints({ before, after }), writeOutput: true };
-    }
-  } finally {
-    // 只读任务：委派后删除（失败也删）；write 任务保留（是产出）
-    if (!write && placed.length) {
-      removeWorkspaceAttachments(placed);
+  for (let attempt = 0; attempt < MAX_WRITE_ATTEMPTS; attempt += 1) {
+    try {
+      result = await RUNNERS[target]({
+        kind,
+        write,
+        prompt: promptOut,
+        cwd,
+        model: req.model,
+        env: req.env, // 显式层直通；无 env 的调用者（CLI 路径）由 adapter 按 allowlist 过滤继承层
+        // codex 等原生图片输入需要放置后的绝对路径（-i）；antigravity 快照附件由 adapter 内处理
+        attachments: placed.length ? placed : snapshotAttachments.length ? snapshotAttachments : undefined
+      });
+
+      if (useWorkspaceProbe && before) {
+        const after = await gitFingerprint(cwd, env);
+        probe = compareFingerprints({ before, after });
+      }
+      if (writeOutputProbe) {
+        const after = await gitFingerprint(cwd, env);
+        probe = { ...compareFingerprints({ before, after }), writeOutput: true };
+      }
+
+      // write 探针只用于零产出检测，"有变化"是正常产出，不构成只读违规
+      failedProbe = (!write && probe && !probe.ok && !probe.skipped) || isolationViolation();
+      // 零产出：write 任务工作区无任何变化（目标只口头声称）——如实标记，不当作成功。
+      // antigravity write 走 worktree 审计（result.touchedFiles），过滤桥自己的附件暂存文件。
+      noOutput =
+        (writeOutputProbe && probe !== null && probe.ok && !probe.skipped) ||
+        // antigravity write：仅当 worktree 审计实际发生（git 仓库）时判定；非 git fallback 无法审计，不指控零产出
+        (write &&
+          target === "antigravity" &&
+          result.worktree &&
+          (result.touchedFiles ?? []).filter((f) => !String(f).includes("agent-bridge-attach-")).length === 0);
+
+      // 有产出或非零产出失败 → 不再重试；仅零产出（模型声称完成但没写）值得再来一次
+      if (!noOutput) {
+        break;
+      }
+    } finally {
+      // 只读任务：委派后删除（失败也删）；write 任务保留（是产出）
+      if (!write && placed.length) {
+        removeWorkspaceAttachments(placed);
+      }
     }
   }
 
-  const isolationViolation = target === "antigravity" && !write && (result.touchedFiles?.length ?? 0) > 0;
-  // write 探针只用于零产出检测，"有变化"是正常产出，不构成只读违规
-  const failedProbe = (!write && probe && !probe.ok && !probe.skipped) || isolationViolation;
-  // 零产出：write 任务工作区无任何变化（目标只口头声称）——如实标记，不当作成功。
-  // antigravity write 走 worktree 审计（result.touchedFiles），过滤桥自己的附件暂存文件。
-  const noOutput =
-    (writeOutputProbe && probe !== null && probe.ok && !probe.skipped) ||
-    // antigravity write：仅当 worktree 审计实际发生（git 仓库）时判定；非 git fallback 无法审计，不指控零产出
-    (write &&
-      target === "antigravity" &&
-      result.worktree &&
-      (result.touchedFiles ?? []).filter((f) => !String(f).includes("agent-bridge-attach-")).length === 0);
   const status = result.ok && !failedProbe && !noOutput ? "completed" : "failed";
   const caps = adapter.capabilities();
   // --worker 固定 jobId：persistJob 覆盖父进程写的 running 记录（同 id 同文件）
