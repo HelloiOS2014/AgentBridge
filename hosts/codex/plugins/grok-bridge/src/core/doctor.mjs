@@ -54,6 +54,34 @@ export async function runDoctor(opts = {}) {
   targets = Object.fromEntries(await Promise.all(entries));
 
   const issues = [];
+  // 版本漂移检测：引擎 vs 插件缓存最高版本——告诉用户"该不该更新"，而不是盲目更
+  try {
+    const { findInstalledPlugins } = await import("./self-update.mjs");
+    const { readFileSync } = await import("node:fs");
+    const engineVersionFile = path.join(agentBridgeHome(env), "engine", "version");
+    const engineVersion = fs.existsSync(engineVersionFile)
+      ? readFileSync(engineVersionFile, "utf8").trim()
+      : null;
+    const latest = findInstalledPlugins(env)
+      .map((p) => p.version)
+      .sort((a, b) => {
+        const pa = a.split(".").map(Number);
+        const pb = b.split(".").map(Number);
+        for (let i = 0; i < Math.max(pa.length, pb.length); i += 1) {
+          const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+          if (d !== 0) return d;
+        }
+        return 0;
+      })
+      .pop();
+    if (latest && engineVersion !== latest) {
+      issues.push(
+        `Engine version ${engineVersion ?? "missing"} lags installed plugin ${latest}. Run: agent-bridge update`
+      );
+    }
+  } catch {
+    // 版本检测失败不阻塞 doctor
+  }
   if (host) {
     const h = hosts[host];
     if (!h.wrapperExists) {

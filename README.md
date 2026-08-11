@@ -40,17 +40,34 @@ codex plugin marketplace add https://github.com/HelloiOS2014/AgentBridge --ref m
 | **Codex** | 重跑 `codex plugin marketplace add <url> --ref main` | Plugins 面板更新 |
 | **Grok** | 按其插件机制刷新 | 同左 |
 
-更新插件后，**下次触发 skill 自动完成引擎升级**：自举检测插件版本 ≠ 引擎版本 → 自动覆盖 `~/.agent-bridge/engine/` 与 wrapper。无需任何手动命令。
+**更新流程（不盲目更：先查状态 → 再更 → 验证明 → 排查有据）**：
 
-> ⚠️ **两层更新别混淆**：`/plugin update` 只更新插件缓存；**运行中的引擎（`~/.agent-bridge/engine/`）需要显式更新**。更新插件后执行：
->
-> ```bash
-> agent-bridge update --json          # 引擎 ≥ 0.1.7 后可用（wrapper 直接调）
-> # 旧引擎（< 0.1.7）不认识 update 命令——直接用插件里的新引擎：
-> node "$(dirname "$(find ~/.claude/plugins -path '*antigravity-bridge*' -name version -type f 2>/dev/null | sort -V | tail -n1)")/src/cli.mjs" update --json
-> ```
->
-> `agent-bridge update` 从已安装插件（最高版本）重建引擎与 wrapper——不依赖 skill 触发时机，任何引擎版本都能用插件 src 形式执行。skill 首次触发的自举仍会兜底升级，但不再作为主路径。
+```bash
+# ① 查状态：看是否需要更新（有"Engine version … lags"提示才需要）
+agent-bridge doctor --json
+
+# ② 更新插件（各 Host 的 marketplace 刷新 + 插件更新）
+claude plugin marketplace update
+claude plugin update antigravity-bridge@agent-bridge-claude
+
+# ③ 更新引擎（两层更新：插件 ≠ 引擎）
+agent-bridge update --json
+#    ↑ 引擎 ≥ 0.1.7 直接可用；旧引擎（< 0.1.7）仅首次用插件 src 执行：
+#    node "$(dirname "$(find ~/.claude/plugins -path '*antigravity-bridge*' -name version -type f 2>/dev/null | sort -V | tail -n1)")/src/cli.mjs" update --json
+
+# ④ 验证：版本应等于插件版本
+agent-bridge version --json
+
+# ⑤ 冒烟：跑一个最小任务确认链路
+```
+
+**排查（版本不涨时，按序查）**：
+1. `agent-bridge doctor --json` → 引擎 vs 插件版本对比提示
+2. 插件缓存是否更新：`ls ~/.claude/plugins/cache/agent-bridge-claude/antigravity-bridge/`（应有新版本目录）
+3. 缓存有多个版本目录时自举/更新会取最高（`sort -V`）；老缓存目录残留不影响
+4. 重跑 `agent-bridge update --json`
+
+**机制说明**：`/plugin update` 只更新插件缓存；运行中的引擎（`~/.agent-bridge/engine/`）由 `agent-bridge update` 显式重建（从插件最高版本复制引擎+wrapper，不依赖 skill 触发时机）。skill 首次触发的自举仍兜底升级，但不再是主路径。
 
 **发布侧（维护者）**：改引擎/模板 → **bump `package.json` version**（自举按版本决定是否覆盖用户引擎；不 bump 用户机器不更新，`generate:skills` 会强制拒绝）→ `npm run generate:skills` → `npm run check:manifest` → commit + push。
 
