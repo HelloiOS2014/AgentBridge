@@ -377,3 +377,57 @@ describe("antigravity write scratch relocation", () => {
     assert.equal(fs.existsSync(path.join(scratch, "made.txt")), false, "moved out of scratch");
   });
 });
+
+describe("antigravity write non-git fallback", () => {
+  it("non-git: scratch output relocated into cwd, reported, completed", async () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-agy-ng-"));
+    const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "ab-agy-ng-scr-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agy-ng-ws-")); // 非 git 目录
+
+    const result = await runDelegation({
+      host: "codex",
+      target: "antigravity",
+      command: "rescue",
+      write: true,
+      prompt: "create file",
+      cwd: dir,
+      env: {
+        ...process.env,
+        AGENT_BRIDGE_HOME: home,
+        AGENT_BRIDGE_STATE_DIR: path.join(home, "state"),
+        AGENT_BRIDGE_ANTIGRAVITY_BIN: fakeAgy,
+        AGENT_BRIDGE_ANTIGRAVITY_SCRATCH: scratch,
+        FAKE_AGY_SCRATCH_WRITE: "ng-out.txt"
+      }
+    });
+    assert.equal(result.status, "completed", result.errorMessage);
+    assert.equal(result.noOutput, undefined);
+    assert.ok((result.relocated ?? []).includes("ng-out.txt"), `relocated: ${JSON.stringify(result.relocated)}`);
+    assert.equal(fs.existsSync(path.join(dir, "ng-out.txt")), true, "file relocated into cwd");
+    assert.equal(fs.existsSync(path.join(scratch, "ng-out.txt")), false, "moved out of scratch");
+  });
+
+  it("non-git: zero output flagged no_output", async () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-agy-ng2-"));
+    const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "ab-agy-ng2-scr-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agy-ng2-ws-"));
+
+    const result = await runDelegation({
+      host: "codex",
+      target: "antigravity",
+      command: "rescue",
+      write: true,
+      prompt: "create file",
+      cwd: dir,
+      env: {
+        ...process.env,
+        AGENT_BRIDGE_HOME: home,
+        AGENT_BRIDGE_STATE_DIR: path.join(home, "state"),
+        AGENT_BRIDGE_ANTIGRAVITY_BIN: fakeAgy,
+        AGENT_BRIDGE_ANTIGRAVITY_SCRATCH: scratch
+      }
+    });
+    assert.equal(result.noOutput, true);
+    assert.equal(result.errorCode, "no_output");
+  });
+});

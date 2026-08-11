@@ -24,6 +24,41 @@ export function resolveAgyBin(options = {}) {
   return discoverAgyBin(env) ?? "agy";
 }
 
+const NON_GIT_SKIP_DIRS = new Set([".git", "node_modules", ".cache"]);
+
+/** 非 git fallback 的产出检测：递归文件清单（排除 .git/node_modules 等），运行前后对比。 */
+function snapshotWorkspaceFiles(root) {
+  const files = new Set();
+  if (!fs.existsSync(root)) {
+    return files;
+  }
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isDirectory() && NON_GIT_SKIP_DIRS.has(entry.name)) {
+        continue;
+      }
+      const p = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(p);
+      } else if (entry.isFile()) {
+        files.add(path.relative(root, p));
+      }
+    }
+  };
+  walk(root);
+  return files;
+}
+
+function diffWorkspaceFiles(before, root) {
+  const added = [];
+  for (const rel of snapshotWorkspaceFiles(root)) {
+    if (!before.has(rel)) {
+      added.push(rel);
+    }
+  }
+  return added;
+}
+
 function discoverAgyBin(env = process.env) {
   return commonAgyBinCandidates(env).find((candidate) => {
     try {
@@ -200,6 +235,9 @@ export async function runAntigravity(req) {
       };
       walk(scratchDir);
     }
+    // 非 git fallback：模型可能直接写 req.cwd（而非 scratch）——运行前后文件清单快照检测直接写。
+    // ⚠️ 必须在 runCommand 之前拍 before（否则模型已写，diff 恒空）。
+    const workspaceBefore = worktree ? null : snapshotWorkspaceFiles(req.cwd);
 
     const result = await runCommand(agyBin, args, {
       cwd: runCwd,
@@ -210,6 +248,7 @@ export async function runAntigravity(req) {
 
     // 搬移 scratch 新增文件 → worktree（或 fallback 真实目录），保持相对路径
     const relocateTarget = worktree ? worktree.worktreePath : req.cwd;
+    const relocated = [];
     if (fs.existsSync(scratchDir)) {
       const walk = (dir) => {
         for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -223,6 +262,7 @@ export async function runAntigravity(req) {
             try {
               fs.copyFileSync(p, dest);
               fs.unlinkSync(p);
+              relocated.push(rel);
             } catch {
               // 搬移失败不阻塞：保留在 scratch，审计按实际可见为准
             }
@@ -231,10 +271,11 @@ export async function runAntigravity(req) {
       };
       walk(scratchDir);
     }
+    const workspaceChanges = worktree ? [] : diffWorkspaceFiles(workspaceBefore, req.cwd);
 
     const touchedFiles = worktree
       ? await collectGitTouchedFiles(worktree.worktreePath, { env })
-      : [];
+      : workspaceChanges;
     const ok =
       result.status === 0 && !result.error && !result.timedOut && !summary.runtimeError && !summary.envelopeError;
     return {
@@ -250,6 +291,7 @@ export async function runAntigravity(req) {
         ? { path: worktree.worktreePath, branch: worktree.branch, cwd: worktree.worktreeCwd }
         : null,
       touchedFiles,
+      relocated,
       usage: summary.usage,
       error:
         summary.envelopeError ||

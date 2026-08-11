@@ -226,11 +226,12 @@ export async function runDelegation(req) {
       // antigravity write 走 worktree 审计（result.touchedFiles），过滤桥自己的附件暂存文件。
       noOutput =
         (writeOutputProbe && probe !== null && probe.ok && !probe.skipped) ||
-        // antigravity write：仅当 worktree 审计实际发生（git 仓库）时判定；非 git fallback 无法审计，不指控零产出
+        // antigravity write：git 走 worktree 审计；非 git fallback 走 scratch 搬移数 + 文件清单快照
         (write &&
           target === "antigravity" &&
-          result.worktree &&
-          (result.touchedFiles ?? []).filter((f) => !String(f).includes("agent-bridge-attach-")).length === 0);
+          (result.worktree
+            ? (result.touchedFiles ?? []).filter((f) => !String(f).includes("agent-bridge-attach-")).length === 0
+            : (result.relocated ?? []).length === 0 && (result.touchedFiles ?? []).length === 0));
 
       // 有产出或非零产出失败 → 不再重试；仅零产出（模型声称完成但没写）值得再来一次
       if (!noOutput) {
@@ -268,6 +269,7 @@ export async function runDelegation(req) {
     sessionId: result.sessionId,
     write,
     touchedFiles: result.touchedFiles ?? probe?.touchedFiles ?? [],
+    relocated: result.relocated ?? undefined,
     worktree: result.worktree ?? null,
     capabilities: caps,
     metadata: {
