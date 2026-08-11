@@ -84,7 +84,11 @@ export function buildClaudeArgs(options = {}) {
 
   const permissionMode =
     options.permissionMode ??
-    (options.kind === "plan" || options.kind === "rescue" || !options.kind ? "dontAsk" : undefined);
+    (options.kind === "rescue" && options.write
+      ? "acceptEdits" // write rescue：dontAsk 会拒绝 Write/Edit 工具调用（实测），acceptEdits 自动批准编辑
+      : options.kind === "plan" || options.kind === "rescue" || !options.kind
+        ? "dontAsk"
+        : undefined);
   // review with no tools: still set dontAsk for zero-interactive
   const mode = permissionMode ?? "dontAsk";
   args.push("--permission-mode", mode);

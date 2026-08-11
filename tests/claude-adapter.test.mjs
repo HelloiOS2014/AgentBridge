@@ -29,6 +29,16 @@ describe("claude adapter", () => {
     assert.throws(() => assertNoForbiddenFlags([...args, "--bare"]));
   });
 
+  it("write rescue uses acceptEdits (dontAsk auto-denies Write tools)", () => {
+    const args = buildClaudeArgs({ kind: "rescue", write: true });
+    const modeIdx = args.indexOf("--permission-mode");
+    assert.ok(modeIdx >= 0);
+    assert.equal(args[modeIdx + 1], "acceptEdits");
+    assert.ok(args.includes("Edit,MultiEdit,Write"));
+    const readRescue = buildClaudeArgs({ kind: "rescue" });
+    assert.ok(readRescue.includes("dontAsk"));
+  });
+
   it("setup with fake claude is ready", async () => {
     const status = await setup({
       env: { ...process.env, AGENT_BRIDGE_CLAUDE_BIN: fakeClaude },
