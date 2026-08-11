@@ -40,25 +40,33 @@ codex plugin marketplace add https://github.com/HelloiOS2014/AgentBridge --ref m
 | **Codex** | 重跑 `codex plugin marketplace add <url> --ref main` | Plugins 面板更新 |
 | **Grok** | 按其插件机制刷新 | 同左 |
 
-**更新流程（不盲目更：先查状态 → 再更 → 验证明 → 排查有据）**：
+**日常更新（三条命令，在终端执行；引擎更新不需要重启 Claude Code）**：
+
+```bash
+claude plugin marketplace update
+claude plugin update antigravity-bridge@agent-bridge-claude     # 更新插件（有新版本时）
+~/.agent-bridge/bin/agent-bridge-claude update --json           # 更新引擎（核心命令）
+```
+
+**完整流程（不盲目更：先查状态 → 再更 → 验证明 → 排查有据）**：
 
 ```bash
 # ① 查状态：看是否需要更新（有"Engine version … lags"提示才需要）
-agent-bridge doctor --json
+~/.agent-bridge/bin/agent-bridge-claude doctor --json
 
 # ② 更新插件（各 Host 的 marketplace 刷新 + 插件更新）
 claude plugin marketplace update
 claude plugin update antigravity-bridge@agent-bridge-claude
 
 # ③ 更新引擎（两层更新：插件 ≠ 引擎）
-agent-bridge update --json
+~/.agent-bridge/bin/agent-bridge-claude update --json
 #    ↑ 引擎 ≥ 0.1.7 直接可用；旧引擎（< 0.1.7）仅首次用插件 src 执行：
 #    node "$(dirname "$(find ~/.claude/plugins -path '*antigravity-bridge*' -name version -type f 2>/dev/null | sort -V | tail -n1)")/src/cli.mjs" update --json
 
 # ④ 验证：版本应等于插件版本
-agent-bridge version --json
+~/.agent-bridge/bin/agent-bridge-claude version --json
 
-# ⑤ 冒烟：跑一个最小任务确认链路
+# ⑤ 冒烟：触发一个 skill（如「让 Antigravity 看这张图」）确认链路
 ```
 
 **排查（版本不涨时，按序查）**：
