@@ -220,8 +220,15 @@ export async function runDelegation(req) {
   const isolationViolation = target === "antigravity" && !write && (result.touchedFiles?.length ?? 0) > 0;
   // write 探针只用于零产出检测，"有变化"是正常产出，不构成只读违规
   const failedProbe = (!write && probe && !probe.ok && !probe.skipped) || isolationViolation;
-  // 零产出：write 任务工作区无任何变化（目标只口头声称）——如实标记，不当作成功
-  const noOutput = writeOutputProbe && probe !== null && probe.ok && !probe.skipped;
+  // 零产出：write 任务工作区无任何变化（目标只口头声称）——如实标记，不当作成功。
+  // antigravity write 走 worktree 审计（result.touchedFiles），过滤桥自己的附件暂存文件。
+  const noOutput =
+    (writeOutputProbe && probe !== null && probe.ok && !probe.skipped) ||
+    // antigravity write：仅当 worktree 审计实际发生（git 仓库）时判定；非 git fallback 无法审计，不指控零产出
+    (write &&
+      target === "antigravity" &&
+      result.worktree &&
+      (result.touchedFiles ?? []).filter((f) => !String(f).includes("agent-bridge-attach-")).length === 0);
   const status = result.ok && !failedProbe && !noOutput ? "completed" : "failed";
   const caps = adapter.capabilities();
   // --worker 固定 jobId：persistJob 覆盖父进程写的 running 记录（同 id 同文件）

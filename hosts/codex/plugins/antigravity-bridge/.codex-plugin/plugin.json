@@ -1,6 +1,6 @@
 {
   "name": "antigravity-bridge",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Delegate planning, review, and rescue from Codex to local Antigravity CLI via AgentBridge.",
   "skills": "./skills/",
   "interface": {

@@ -297,3 +297,48 @@ describe("agy json envelope parsing", () => {
     assert.match(result.error, /fake agy error envelope/);
   });
 });
+
+describe("antigravity write zero-output", () => {
+  it("write with no worktree change is flagged no_output", async () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-agy-no-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agy-no-ws-"));
+    spawnSync("git", ["init", "-q"], { cwd: dir, encoding: "utf8" });
+    fs.writeFileSync(path.join(dir, "a.txt"), "a\n");
+    spawnSync("git", ["add", "."], { cwd: dir });
+    spawnSync("git", ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init"], { cwd: dir, encoding: "utf8" });
+
+    const result = await runDelegation({
+      host: "codex",
+      target: "antigravity",
+      command: "rescue",
+      write: true,
+      prompt: "create file",
+      cwd: dir,
+      env: { ...process.env, AGENT_BRIDGE_HOME: home, AGENT_BRIDGE_STATE_DIR: path.join(home, "state"), AGENT_BRIDGE_ANTIGRAVITY_BIN: fakeAgy }
+    });
+    // fake agy 不产出 → 零产出应如实标记
+    assert.equal(result.noOutput, true);
+    assert.equal(result.errorCode, "no_output");
+  });
+
+  it("write with real worktree change is not zero-output", async () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-agy-yes-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agy-yes-ws-"));
+    spawnSync("git", ["init", "-q"], { cwd: dir, encoding: "utf8" });
+    fs.writeFileSync(path.join(dir, "a.txt"), "a\n");
+    spawnSync("git", ["add", "."], { cwd: dir });
+    spawnSync("git", ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init"], { cwd: dir, encoding: "utf8" });
+
+    const result = await runDelegation({
+      host: "codex",
+      target: "antigravity",
+      command: "rescue",
+      write: true,
+      prompt: "create file",
+      cwd: dir,
+      env: { ...process.env, AGENT_BRIDGE_HOME: home, AGENT_BRIDGE_STATE_DIR: path.join(home, "state"), AGENT_BRIDGE_ANTIGRAVITY_BIN: fakeAgy, FAKE_AGY_TOUCH: "made.txt" }
+    });
+    assert.equal(result.noOutput, undefined, "worktree 有产出");
+    assert.equal(result.status, "completed");
+  });
+});
