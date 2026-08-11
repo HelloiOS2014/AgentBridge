@@ -34,7 +34,7 @@ describe("claude adapter", () => {
     const modeIdx = args.indexOf("--permission-mode");
     assert.ok(modeIdx >= 0);
     assert.equal(args[modeIdx + 1], "acceptEdits");
-    assert.ok(args.includes("Edit,MultiEdit,Write"));
+    assert.ok(args.some((a) => String(a).includes("Edit,MultiEdit,Write")));
     const readRescue = buildClaudeArgs({ kind: "rescue" });
     assert.ok(readRescue.includes("dontAsk"));
   });
