@@ -44,6 +44,18 @@ describe("self update", () => {
     assert.equal(fs.statSync(wrapper).mode & 0o111, 0o111, "wrapper executable");
   });
 
+  it("host is extracted from marketplace dir name", () => {
+    const env = makeEnv();
+    makePluginCache(env.pluginRoot, "antigravity-bridge", "0.1.6");
+    const { findInstalledPlugins } = require("../src/core/self-update.mjs") ?? {};
+    // 用动态 import 检查 host 字段
+    return import("../src/core/self-update.mjs").then((m) => {
+      const list = m.findInstalledPlugins(env);
+      assert.ok(list.length > 0);
+      assert.equal(list[0].host, "claude");
+    });
+  });
+
   it("already at latest is a no-op", () => {
     const env = makeEnv();
     makePluginCache(env.pluginRoot, "grok-bridge", "0.1.6");

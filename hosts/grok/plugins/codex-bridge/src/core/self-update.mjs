@@ -46,9 +46,8 @@ export function findInstalledPlugins(env = process.env) {
         } else if (entry.name === "version" && dir.includes("-bridge")) {
           try {
             const version = fs.readFileSync(p, "utf8").trim();
-            const host = dir.match(/bin\/agent-bridge-([a-z]+)/)?.[1]
-              ?? path.basename(dir).split("-")[0] // 回退：从插件名猜 host
-              ?? "unknown";
+            // host 从 marketplace 目录名提取（agent-bridge-claude → claude；agent-bridge-codex → codex）
+            const host = dir.match(/agent-bridge-([a-z]+)/)?.[1] ?? "unknown";
             if (version) {
               found.push({ host, version, pluginDir: path.dirname(p) });
             }
