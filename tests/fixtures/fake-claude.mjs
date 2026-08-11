@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 
+import fs from "node:fs";
+import path from "node:path";
+
 const args = process.argv.slice(2);
 
 if (args.includes("--version")) {
