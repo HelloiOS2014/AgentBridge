@@ -13,7 +13,7 @@ import { collectReviewContext } from "./git-context.mjs";
 import { newJobId, pruneExpiredJobs, registerJob } from "./jobs.mjs";
 import { ensureDir, stateRoot } from "./paths.mjs";
 import { composePlanPrompt, composeRescuePrompt, composeReviewPrompt } from "./prompts.mjs";
-import { compareFingerprints, gitFingerprint } from "./write-probe.mjs";
+import { compareFingerprints, diffDirFiles, gitFingerprint, snapshotDirFiles } from "./write-probe.mjs";
 
 /**
  * @param {string} cwd
@@ -203,6 +203,9 @@ export async function runDelegation(req) {
   const probeWorkspace = target !== "antigravity";
   const useWorkspaceProbe = !write && probeWorkspace;
   const before = probeWorkspace ? await gitFingerprint(cwd, env) : null;
+  // 非 git 目录：write 产出检测回退文件清单快照（git 探针不可用时）
+  const workspaceFilesBefore =
+    write && probeWorkspace && before !== null && before.git === false ? snapshotDirFiles(cwd) : null;
 
   // 写任务重试：目标模型（尤其 agy flash）时常"一轮即停/零产出"，重试显著提高完成率。
   // worktree/工作区在尝试间保留，进度可累积；最多 3 次，每次失败原因如实保留在最后一次结果。
@@ -235,7 +238,15 @@ export async function runDelegation(req) {
       }
       if (writeOutputProbe) {
         const after = await gitFingerprint(cwd, env);
-        probe = { ...compareFingerprints({ before, after }), writeOutput: true };
+        if (after.git) {
+          probe = { ...compareFingerprints({ before, after }), writeOutput: true };
+        } else if (workspaceFilesBefore) {
+          // 非 git：文件清单 diff（过滤桥的附件暂存文件）
+          const changes = diffDirFiles(workspaceFilesBefore, cwd).filter(
+            (f) => !f.includes("agent-bridge-attach-")
+          );
+          probe = { ok: changes.length === 0, skipped: false, writeOutput: true, touchedFiles: changes };
+        }
       }
 
       // write 探针只用于零产出检测，"有变化"是正常产出，不构成只读违规

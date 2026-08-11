@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { runCommand } from "./process.mjs";
 
 /**
@@ -37,4 +39,39 @@ export function compareFingerprints(pair) {
     return { ok: true, skipped: false, touchedFiles: [] };
   }
   return { ok: false, skipped: false, touchedFiles: touched };
+}
+
+const NON_GIT_SKIP_DIRS = new Set([".git", "node_modules", ".cache"]);
+
+/** 非 git 目录产出检测：递归文件清单（排除 .git/node_modules/.cache）。 */
+export function snapshotDirFiles(root) {
+  const files = new Set();
+  if (!fs.existsSync(root)) {
+    return files;
+  }
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isDirectory() && NON_GIT_SKIP_DIRS.has(entry.name)) {
+        continue;
+      }
+      const p = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(p);
+      } else if (entry.isFile()) {
+        files.add(path.relative(root, p));
+      }
+    }
+  };
+  walk(root);
+  return files;
+}
+
+export function diffDirFiles(before, root) {
+  const added = [];
+  for (const rel of snapshotDirFiles(root)) {
+    if (!before.has(rel)) {
+      added.push(rel);
+    }
+  }
+  return added;
 }

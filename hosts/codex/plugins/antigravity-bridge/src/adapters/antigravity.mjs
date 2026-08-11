@@ -4,6 +4,7 @@ import path from "node:path";
 import { assertNoForbiddenFlags } from "../core/safety.mjs";
 import { buildTargetEnv } from "../core/env-allowlist.mjs";
 import { binaryAvailable, runCommand } from "../core/process.mjs";
+import { diffDirFiles, snapshotDirFiles } from "../core/write-probe.mjs";
 import {
   collectGitTouchedFiles,
   isolationMetadata,
@@ -22,41 +23,6 @@ export function resolveAgyBin(options = {}) {
     return env.AGENT_BRIDGE_ANTIGRAVITY_BIN || env.ANTIGRAVITY_COMPANION_AGY_BIN;
   }
   return discoverAgyBin(env) ?? "agy";
-}
-
-const NON_GIT_SKIP_DIRS = new Set([".git", "node_modules", ".cache"]);
-
-/** 非 git fallback 的产出检测：递归文件清单（排除 .git/node_modules 等），运行前后对比。 */
-function snapshotWorkspaceFiles(root) {
-  const files = new Set();
-  if (!fs.existsSync(root)) {
-    return files;
-  }
-  const walk = (dir) => {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      if (entry.isDirectory() && NON_GIT_SKIP_DIRS.has(entry.name)) {
-        continue;
-      }
-      const p = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        walk(p);
-      } else if (entry.isFile()) {
-        files.add(path.relative(root, p));
-      }
-    }
-  };
-  walk(root);
-  return files;
-}
-
-function diffWorkspaceFiles(before, root) {
-  const added = [];
-  for (const rel of snapshotWorkspaceFiles(root)) {
-    if (!before.has(rel)) {
-      added.push(rel);
-    }
-  }
-  return added;
 }
 
 function discoverAgyBin(env = process.env) {
@@ -237,7 +203,7 @@ export async function runAntigravity(req) {
     }
     // 非 git fallback：模型可能直接写 req.cwd（而非 scratch）——运行前后文件清单快照检测直接写。
     // ⚠️ 必须在 runCommand 之前拍 before（否则模型已写，diff 恒空）。
-    const workspaceBefore = worktree ? null : snapshotWorkspaceFiles(req.cwd);
+    const workspaceBefore = worktree ? null : snapshotDirFiles(req.cwd);
     const relocateTarget = worktree ? worktree.worktreePath : req.cwd;
 
     // 中断恢复标记：写任务运行前在 scratch 落 marker（记录目标目录），完成后删除。
@@ -285,7 +251,7 @@ export async function runAntigravity(req) {
       };
       walk(scratchDir);
     }
-    const workspaceChanges = worktree ? [] : diffWorkspaceFiles(workspaceBefore, req.cwd);
+    const workspaceChanges = worktree ? [] : diffDirFiles(workspaceBefore, req.cwd);
     try {
       fs.rmSync(markerPath, { force: true }); // 正常完成：移除中断恢复标记
     } catch {

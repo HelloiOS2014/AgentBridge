@@ -113,3 +113,22 @@ describe("write task output detection", () => {
     assert.match(result.summary, /零产出/);
   });
 });
+
+describe("generic non-git write output detection", () => {
+  it("grok write in non-git dir with zero output is flagged no_output", async () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-grokng-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "grok-ng-ws-"));
+    const fakeGrok = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "fixtures/fake-grok.mjs");
+    const result = await runDelegation({
+      host: "claude",
+      target: "grok",
+      command: "rescue",
+      write: true,
+      prompt: "create file",
+      cwd: dir,
+      env: { ...process.env, AGENT_BRIDGE_HOME: home, AGENT_BRIDGE_STATE_DIR: path.join(home, "state"), AGENT_BRIDGE_GROK_BIN: fakeGrok }
+    });
+    assert.equal(result.noOutput, true);
+    assert.equal(result.errorCode, "no_output");
+  });
+});
