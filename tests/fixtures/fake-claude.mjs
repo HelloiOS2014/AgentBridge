@@ -21,6 +21,10 @@ if (process.env.FAKE_CLAUDE_SLEEP_MS) {
   await new Promise((resolve) => setTimeout(resolve, Number(process.env.FAKE_CLAUDE_SLEEP_MS)));
 }
 
+if (process.env.FAKE_CLAUDE_TOUCH) {
+  fs.writeFileSync(path.join(process.cwd(), process.env.FAKE_CLAUDE_TOUCH), "fake claude touched\n", "utf8");
+}
+
 let stdin = "";
 process.stdin.setEncoding("utf8");
 for await (const chunk of process.stdin) {

@@ -111,7 +111,8 @@ describe("runDelegation attachments (workspace targets)", () => {
     const dir = makeRepo();
     const file = path.join(dir, "..", "log.txt");
     fs.writeFileSync(file, "stack trace");
-    const env = makeEnv({ AGENT_BRIDGE_CLAUDE_BIN: fakeClaude });
+    // 目标真实产出（触摸文件）——零产出检测下，"只放附件但目标什么都没干"应判 no_output
+    const env = makeEnv({ AGENT_BRIDGE_CLAUDE_BIN: fakeClaude, FAKE_CLAUDE_TOUCH: "target-output.txt" });
 
     const result = await runDelegation({
       host: "codex",
@@ -125,9 +126,32 @@ describe("runDelegation attachments (workspace targets)", () => {
     });
 
     assert.equal(result.status, "completed", result.errorMessage);
+    assert.equal(result.noOutput, undefined, "有真实产出则不是零产出");
+    assert.equal(fs.existsSync(path.join(dir, "target-output.txt")), true, "目标产出落盘");
     const meta = result.metadata.attachments[0];
     assert.equal(fs.existsSync(meta.placedPath), true, "write attachment kept");
     assert.match(result.rendered, /agent-bridge-attach-0-log\.txt/);
+  });
+
+  it("rescue --write with attachment but zero target output is flagged no_output", async () => {
+    const dir = makeRepo();
+    const file = path.join(dir, "..", "log2.txt");
+    fs.writeFileSync(file, "stack trace");
+    const env = makeEnv({ AGENT_BRIDGE_CLAUDE_BIN: fakeClaude });
+
+    const result = await runDelegation({
+      host: "codex",
+      target: "claude",
+      command: "rescue",
+      prompt: `fix from ${file}`,
+      write: true,
+      cwd: dir,
+      attachments: [file],
+      env
+    });
+
+    assert.equal(result.noOutput, true);
+    assert.equal(result.errorCode, "no_output");
   });
 
   it("invalid attachment returns usage failure", async () => {
