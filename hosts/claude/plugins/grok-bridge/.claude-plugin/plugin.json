@@ -1,5 +1,5 @@
 {
   "name": "grok-bridge",
-  "version": "0.1.18",
+  "version": "0.1.19",
   "description": "Bridge Claude Code to local Grok Build."
 }

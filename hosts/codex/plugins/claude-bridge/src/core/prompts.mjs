@@ -32,7 +32,9 @@ function fileOutputSection() {
   return [
     "## Output format",
     "This is a complex or long task. Write the full output into files under the",
-    '"agent-bridge-output/" directory (relative to your current workspace; create the directory if needed).',
+    '"agent-bridge-output/" directory (relative to your current workspace; the directory already exists).',
+    "Create the files with your file-edit tool (e.g. search_replace / Edit) — do NOT use terminal",
+    "heredoc commands (<< EOF), which are unsupported in this environment.",
     "In your reply, only list the output file paths with a one-line summary of each —",
     "do NOT paste the full content into the reply text."
   ].join("\n");

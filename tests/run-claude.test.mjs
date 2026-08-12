@@ -181,3 +181,27 @@ describe("output mode annotation", () => {
     assert.deepEqual(result.outputFiles, []);
   });
 });
+
+describe("output file directory pre-creation", () => {
+  it("--output file pre-creates agent-bridge-output/ in cwd (non-antigravity)", async () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-pre-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ab-pre-ws-"));
+    spawnSync("git", ["init", "-q"], { cwd: dir, encoding: "utf8" });
+    fs.writeFileSync(path.join(dir, "a.txt"), "a\n");
+    spawnSync("git", ["add", "."], { cwd: dir });
+    spawnSync("git", ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init"], { cwd: dir, encoding: "utf8" });
+    const fakeGrok = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "fixtures/fake-grok.mjs");
+
+    await runDelegation({
+      host: "claude",
+      target: "grok",
+      command: "rescue",
+      write: true,
+      prompt: "long report",
+      outputMode: "file",
+      cwd: dir,
+      env: { ...process.env, AGENT_BRIDGE_HOME: home, AGENT_BRIDGE_STATE_DIR: path.join(home, "state"), AGENT_BRIDGE_GROK_BIN: fakeGrok }
+    });
+    assert.equal(fs.existsSync(path.join(dir, "agent-bridge-output")), true, "目录应被预建");
+  });
+});

@@ -158,6 +158,10 @@ export async function runDelegation(req) {
     prompt = composeReviewPrompt(precollectedContext, true, promptText);
   } else if (kind === "rescue") {
     prompt = composeRescuePrompt(promptText, Boolean(req.write), req.outputMode ?? "inline");
+    // --output file：预建产出目录（模型只管用编辑工具写文件；antigravity 走 scratch 搬移，目录由搬移 mkdir）
+    if (Boolean(req.write) && req.outputMode === "file" && target !== "antigravity") {
+      fs.mkdirSync(path.join(cwd, "agent-bridge-output"), { recursive: true });
+    }
   } else {
     return {
       status: "failed",
