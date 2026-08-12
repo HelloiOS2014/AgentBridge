@@ -157,7 +157,7 @@ export async function runDelegation(req) {
   } else if (kind === "adversarial-review") {
     prompt = composeReviewPrompt(precollectedContext, true, promptText);
   } else if (kind === "rescue") {
-    prompt = composeRescuePrompt(promptText, Boolean(req.write));
+    prompt = composeRescuePrompt(promptText, Boolean(req.write), req.outputMode ?? "inline");
   } else {
     return {
       status: "failed",
@@ -279,6 +279,7 @@ export async function runDelegation(req) {
   const status = result.ok && !failedProbe && !noOutput ? "completed" : "failed";
   // 隔离绕过：模型直接改了主仓库（未进 worktree）
   const isolationBypassed = (result.mainWorkspaceChanges ?? []).length > 0 ? result.mainWorkspaceChanges : undefined;
+  const effTouchedFiles = result.touchedFiles ?? probe?.touchedFiles ?? [];
   const caps = adapter.capabilities();
   // --worker 固定 jobId：persistJob 覆盖父进程写的 running 记录（同 id 同文件）
 
@@ -302,7 +303,10 @@ export async function runDelegation(req) {
     rawOutput: result.rawOutput,
     sessionId: result.sessionId,
     write,
-    touchedFiles: result.touchedFiles ?? probe?.touchedFiles ?? [],
+    touchedFiles: effTouchedFiles,
+    // 输出形态标注：显式 --output file 且产出含 agent-bridge-output/ 文件 → "file"；否则如实 "inline"
+    outputFiles: effTouchedFiles.filter((f) => String(f).includes("agent-bridge-output/")),
+    outputMode: req.outputMode === "file" ? "file" : "inline",
     relocated: result.relocated ?? undefined,
     isolationBypassed,
     worktree: result.worktree ?? null,

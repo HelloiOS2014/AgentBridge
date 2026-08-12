@@ -95,6 +95,8 @@ claude plugin update antigravity-bridge@agent-bridge-claude
 agent-bridge status <job-id> --json        # 查任务（轻量）
 agent-bridge result <job-id> --full        # 取完整结果（默认截断防撑爆上下文）
 agent-bridge --background …                # 后台 worker，status/cancel 跟踪
+agent-bridge … rescue --write --output file --json --prompt "…"
+# ↑ 复杂/长任务：产出写入工作区 agent-bridge-output/，返回只给路径+摘要（outputMode: file）
 ```
 
 ## 可桥接矩阵

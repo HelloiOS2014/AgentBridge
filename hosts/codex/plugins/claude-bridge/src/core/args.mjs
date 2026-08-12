@@ -42,6 +42,7 @@ export function parseCliArgv(argv) {
     full: false,
     cwd: null,
     worker: null,
+    output: null,
     /** @type {string[]} */
     attachments: []
   };
@@ -161,6 +162,16 @@ export function parseCliArgv(argv) {
       flags.model = a.slice("--model=".length);
       continue;
     }
+    if (a === "--output") {
+      const [v, consumed] = valueArg(argv, i);
+      flags.output = v;
+      if (consumed) i += 1;
+      continue;
+    }
+    if (a.startsWith("--output=")) {
+      flags.output = a.slice("--output=".length);
+      continue;
+    }
     if (a === "--attach") {
       const [v, consumed] = valueArg(argv, i);
       if (!consumed) {
@@ -211,6 +222,9 @@ export function parseCliArgv(argv) {
   }
   if (flags.target && !isTargetId(flags.target)) {
     throw new Error(`Invalid --target: ${flags.target}`);
+  }
+  if (flags.output && !["inline", "file"].includes(flags.output)) {
+    throw new Error(`Invalid --output: ${flags.output} (expected inline|file)`);
   }
 
   return { target, command, rest, flags };

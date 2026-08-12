@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+
+import fs from "node:fs";
+import path from "node:path";
+
 const args = process.argv.slice(2);
 
 if (args.includes("--version") || args.includes("--help")) {
@@ -22,3 +26,9 @@ console.log(
     args
   })
 );
+
+if (process.env.FAKE_GROK_TOUCH) {
+  const target = path.join(process.cwd(), process.env.FAKE_GROK_TOUCH);
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.writeFileSync(target, "grok touched\n", "utf8");
+}

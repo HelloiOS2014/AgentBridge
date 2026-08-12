@@ -132,3 +132,52 @@ describe("generic non-git write output detection", () => {
     assert.equal(result.errorCode, "no_output");
   });
 });
+
+describe("output mode annotation", () => {
+  it("explicit --output file with agent-bridge-output files → outputMode file", async () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-om-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ab-om-ws-"));
+    spawnSync("git", ["init", "-q"], { cwd: dir, encoding: "utf8" });
+    fs.writeFileSync(path.join(dir, "a.txt"), "a\n");
+    spawnSync("git", ["add", "."], { cwd: dir });
+    spawnSync("git", ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init"], { cwd: dir, encoding: "utf8" });
+    const fakeGrok = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "fixtures/fake-grok.mjs");
+
+    const result = await runDelegation({
+      host: "claude",
+      target: "grok",
+      command: "rescue",
+      write: true,
+      prompt: "produce a long report",
+      outputMode: "file",
+      cwd: dir,
+      env: { ...process.env, AGENT_BRIDGE_HOME: home, AGENT_BRIDGE_STATE_DIR: path.join(home, "state"), AGENT_BRIDGE_GROK_BIN: fakeGrok, FAKE_GROK_TOUCH: "agent-bridge-output/report.md" }
+    });
+    assert.equal(result.outputMode, "file");
+    // git porcelain 把未跟踪目录折叠为 "agent-bridge-output/"，按前缀断言
+    assert.ok(result.outputFiles.some((f) => f.startsWith("agent-bridge-output")), JSON.stringify(result.outputFiles));
+    assert.match(result.rendered, /agent-bridge-output/); // prompt 注入产出规范
+  });
+
+  it("default is inline even with ordinary output files", async () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-om2-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ab-om2-ws-"));
+    spawnSync("git", ["init", "-q"], { cwd: dir, encoding: "utf8" });
+    fs.writeFileSync(path.join(dir, "a.txt"), "a\n");
+    spawnSync("git", ["add", "."], { cwd: dir });
+    spawnSync("git", ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init"], { cwd: dir, encoding: "utf8" });
+    const fakeGrok = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "fixtures/fake-grok.mjs");
+
+    const result = await runDelegation({
+      host: "claude",
+      target: "grok",
+      command: "rescue",
+      write: true,
+      prompt: "fix",
+      cwd: dir,
+      env: { ...process.env, AGENT_BRIDGE_HOME: home, AGENT_BRIDGE_STATE_DIR: path.join(home, "state"), AGENT_BRIDGE_GROK_BIN: fakeGrok, FAKE_GROK_TOUCH: "fixed.txt" }
+    });
+    assert.equal(result.outputMode, "inline");
+    assert.deepEqual(result.outputFiles, []);
+  });
+});

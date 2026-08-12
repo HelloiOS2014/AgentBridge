@@ -22,14 +22,34 @@ export function composeReviewPrompt(contextContent, adversarial = false, focus =
     .join("\n\n");
 }
 
-export function composeRescuePrompt(userPrompt, write) {
+/**
+ * 长任务产出规范：显式 --output file 时注入，约束目标 agent 把完整产出写入
+ * agent-bridge-output/ 文件、返回只给路径+摘要（避免长内容撑爆返回通道）。
+ * 目录用工作区相对路径：grok 等写 cwd 时落在 worktree/agent-bridge-output/，
+ * agy 写 scratch 时经搬移保留相对路径同样落在 worktree/agent-bridge-output/。
+ */
+function fileOutputSection() {
+  return [
+    "## Output format",
+    "This is a complex or long task. Write the full output into files under the",
+    '"agent-bridge-output/" directory (relative to your current workspace; create the directory if needed).',
+    "In your reply, only list the output file paths with a one-line summary of each —",
+    "do NOT paste the full content into the reply text."
+  ].join("\n");
+}
+
+export function composeRescuePrompt(userPrompt, write, outputMode = "inline") {
   if (write) {
-    return [
+    const body = [
       "You are in write-enabled rescue mode via AgentBridge.",
       "Make the smallest safe edits. Avoid unrelated changes. Report diagnosis, files touched, verification, risks.",
       "User request:",
       userPrompt
-    ].join("\n\n");
+    ];
+    if (outputMode === "file") {
+      body.push(fileOutputSection());
+    }
+    return body.join("\n\n");
   }
   return [
     "You are in read-only rescue / diagnosis mode via AgentBridge.",

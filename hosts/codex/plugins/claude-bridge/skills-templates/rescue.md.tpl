@@ -41,6 +41,8 @@ Write-enabled (explicit user intent only):
 Optional: `--cwd "$WORKSPACE"`, `--model <model>` if user named one.
 If the user gave a file / log / screenshot path to investigate, pass it with `--attach "$FILE"` (absolute path, repeatable).
 
+For complex or long tasks (multi-file redesigns, long reports, large diffs): append `--output file` to the wrapper invocation (or instruct in `$PROMPT`) — the target will write full output to `agent-bridge-output/` in the workspace and reply with paths + summaries, keeping the conversation light. Simple tasks stay inline.
+
 ## After The Result
 
 - Summarize diagnosis, files touched (if any), verification, remaining risk.

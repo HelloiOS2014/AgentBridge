@@ -463,7 +463,8 @@ async function main() {
       write: flags.write,
       cwd: flags.cwd || process.cwd(),
       jobId: flags.worker !== null ? flags.worker : undefined,
-      attachments: flags.attachments
+      attachments: flags.attachments,
+      outputMode: flags.output ?? undefined
     });
     const code =
       result.status === "completed"

@@ -5,25 +5,25 @@
   },
   "metadata": {
     "description": "Agent Bridge plugins for Claude Code (no self / Claude target).",
-    "version": "0.1.16"
+    "version": "0.1.17"
   },
   "plugins": [
     {
       "name": "codex-bridge",
       "description": "Delegate planning, review, and rescue to local Codex.",
-      "version": "0.1.16",
+      "version": "0.1.17",
       "source": "./hosts/claude/plugins/codex-bridge"
     },
     {
       "name": "grok-bridge",
       "description": "Delegate planning, review, and rescue to local Grok Build.",
-      "version": "0.1.16",
+      "version": "0.1.17",
       "source": "./hosts/claude/plugins/grok-bridge"
     },
     {
       "name": "antigravity-bridge",
       "description": "Delegate planning, review, and rescue to local Antigravity CLI.",
-      "version": "0.1.16",
+      "version": "0.1.17",
       "source": "./hosts/claude/plugins/antigravity-bridge"
     }
   ]
