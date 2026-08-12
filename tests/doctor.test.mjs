@@ -44,6 +44,52 @@ describe("doctor", () => {
   });
 });
 
+describe("doctor marketplace form", () => {
+  function seedMarketplacePlugin(root, version) {
+    // marketplace 名 agent-bridge-claude → host claude；插件 antigravity-bridge 带 skills
+    const dir = path.join(root, "cache", "agent-bridge-claude", "antigravity-bridge", version);
+    fs.mkdirSync(path.join(dir, "skills", "antigravity-rescue"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "version"), `${version}\n`, "utf8");
+    fs.writeFileSync(path.join(dir, "skills", "antigravity-rescue", "SKILL.md"), "# antigravity-rescue\n", "utf8");
+    return dir;
+  }
+
+  it("marketplace-installed host passes without install lock or user skills", async (t) => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-mp-"));
+    const pluginRoot = fs.mkdtempSync(path.join(os.tmpdir(), "ab-mp-plug-"));
+    t.after(() => {
+      fs.rmSync(home, { recursive: true, force: true });
+      fs.rmSync(pluginRoot, { recursive: true, force: true });
+    });
+    seedMarketplacePlugin(pluginRoot, "0.1.20");
+    // marketplace 形态的 wrapper 由自举生成（存在但无 lock、无 user skills）
+    const wrapper = path.join(home, "bin", "agent-bridge-claude");
+    fs.mkdirSync(path.dirname(wrapper), { recursive: true });
+    fs.writeFileSync(wrapper, "#!/usr/bin/env node\n", { mode: 0o755 });
+    const report = await runDoctor({
+      host: "claude",
+      env: { ...process.env, HOME: home, AGENT_BRIDGE_HOME: home, AGENT_BRIDGE_PLUGIN_ROOT: pluginRoot },
+      cwd: process.cwd()
+    });
+    assert.ok(!report.issues.some((i) => /install lock|No user skills/.test(i)), JSON.stringify(report.issues));
+  });
+
+  it("still flags missing install when no marketplace plugin installed", async (t) => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-mp2-"));
+    const pluginRoot = fs.mkdtempSync(path.join(os.tmpdir(), "ab-mp2-plug-"));
+    t.after(() => {
+      fs.rmSync(home, { recursive: true, force: true });
+      fs.rmSync(pluginRoot, { recursive: true, force: true });
+    });
+    const report = await runDoctor({
+      host: "claude",
+      env: { ...process.env, HOME: home, AGENT_BRIDGE_HOME: home, AGENT_BRIDGE_PLUGIN_ROOT: pluginRoot },
+      cwd: process.cwd()
+    });
+    assert.ok(report.issues.some((i) => /install lock/.test(i)), JSON.stringify(report.issues));
+  });
+});
+
 describe("doctor version drift", () => {
   function seedPlugin(root, version) {
     const dir = path.join(root, "cache", "mp", "antigravity-bridge", version);

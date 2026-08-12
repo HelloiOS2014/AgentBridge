@@ -55,15 +55,23 @@ export async function runDoctor(opts = {}) {
   targets = Object.fromEntries(await Promise.all(entries));
 
   const issues = [];
-  // 版本漂移检测：引擎 vs 插件缓存最高版本——告诉用户"该不该更新"，而不是盲目更
+  // marketplace 形态（插件 cache 里有 bridge 插件）与 CLI-install 形态（lock + ~/.claude/skills）
+  // 是两种互斥安装方式；doctor 两者都认，不因形态不同误报。
+  let installedPlugins = [];
   try {
     const { findInstalledPlugins } = await import("./self-update.mjs");
+    installedPlugins = findInstalledPlugins(env);
+  } catch {
+    // 检测失败不阻塞 doctor
+  }
+  // 版本漂移检测：引擎 vs 插件缓存最高版本——告诉用户"该不该更新"，而不是盲目更
+  try {
     const { readFileSync } = await import("node:fs");
     const engineVersionFile = path.join(agentBridgeHome(env), "engine", "version");
     const engineVersion = fs.existsSync(engineVersionFile)
       ? readFileSync(engineVersionFile, "utf8").trim()
       : null;
-    const latest = findInstalledPlugins(env)
+    const latest = installedPlugins
       .map((p) => p.version)
       .sort((a, b) => {
         const pa = a.split(".").map(Number);
@@ -126,10 +134,21 @@ export async function runDoctor(opts = {}) {
     if (!h.wrapperExists) {
       issues.push(`Missing wrapper for ${host}. Run: agent-bridge install --host ${host} --apply`);
     }
-    if (!h.lock) {
+    // marketplace 形态已装（该 host 的 bridge 插件带 skills）→ lock/skills 检查让位
+    const mpInstalled = installedPlugins.some((p) => {
+      if (p.host !== host) {
+        return false;
+      }
+      const skillsRoot = path.join(p.pluginDir, "skills");
+      return (
+        fs.existsSync(skillsRoot) &&
+        fs.readdirSync(skillsRoot).some((n) => fs.existsSync(path.join(skillsRoot, n, "SKILL.md")))
+      );
+    });
+    if (!h.lock && !mpInstalled) {
       issues.push(`No install lock for ${host}. Run: agent-bridge install --host ${host} --apply`);
     }
-    if (h.skillCount === 0) {
+    if (h.skillCount === 0 && !mpInstalled) {
       issues.push(`No user skills under ${h.skillsRoot}. Re-run install --apply.`);
     }
   }

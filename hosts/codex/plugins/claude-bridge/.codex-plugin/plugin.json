@@ -1,6 +1,6 @@
 {
   "name": "claude-bridge",
-  "version": "0.1.20",
+  "version": "0.1.21",
   "description": "Delegate planning, review, and rescue from Codex to local Claude Code via AgentBridge.",
   "skills": "./skills/",
   "interface": {
