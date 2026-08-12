@@ -31,9 +31,9 @@ describe("grok adapter", () => {
     for (const t of ["read_file", "grep", "list_dir", "search_replace", "run_terminal_command"]) {
       assert.ok(tools.includes(t), `missing tool ${t}`);
     }
-    assert.ok(args.includes("acceptEdits"));
+    assert.ok(args.includes("dontAsk")); // dontAsk = 严格 allowlist（acceptEdits 只批编辑，terminal 被拒）
     assert.ok(args.includes("--deny"));
-    // headless 免审批：Edit/Write/Bash allow 规则（acceptEdits 对 search_replace 仍会被自动拒绝）
+    // headless 免审批：Edit/Write/Bash allow 规则（acceptEdits 对 terminal 仍会被自动取消）
     assert.ok(args.includes("Edit(**)"));
     assert.ok(args.includes("Write(**)"));
     assert.ok(args.includes("Bash(*)"));

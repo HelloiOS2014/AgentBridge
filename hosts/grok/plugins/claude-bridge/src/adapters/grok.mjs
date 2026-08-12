@@ -69,16 +69,17 @@ export function buildGrokArgs(options = {}) {
     );
   } else {
     // Write path: 显式授予编辑与 shell 工具 + allow 规则免审批。
-    // 实测：headless 下无交互审批，acceptEdits 对 search_replace 仍被自动拒绝（"User cancelled"），
-    // 必须 --allow Edit/Write/Bash 规则；工具 ID 以实测为准（run_terminal_command 而非文档的 run_terminal_cmd）。
-    // 仍禁 bare yolo 与子 agent。
+    // 实测（0.1.17 后）：acceptEdits 只自动批准编辑工具，terminal（run_terminal_command）
+    // 在 headless 下被自动"取消"→ 子目录/建目录任务全部失败（模型其实正确调用了工具）。
+    // 改用 dontAsk = "Only pre-approved tools"（严格 allowlist）：Edit/Write/Bash(*) 规则
+    // 覆盖编辑与终端，白名单外一律拒绝。仍禁 bare yolo 与子 agent。
     args.push(
       "--tools",
       "read_file,grep,list_dir,search_replace,run_terminal_command",
       "--disallowed-tools",
       "Agent",
       "--permission-mode",
-      "acceptEdits",
+      "dontAsk",
       "--deny",
       "MCPTool(*)",
       "--allow",
