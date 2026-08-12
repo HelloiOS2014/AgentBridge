@@ -496,3 +496,31 @@ describe("antigravity main-repo bypass detection", () => {
     assert.ok(fs.existsSync(mainFile), "文件确实写入了主仓库");
   });
 });
+
+describe("antigravity output-file dir pre-creation", () => {
+  it("--output file pre-creates agent-bridge-output in worktree and scratch", async () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "ab-agy-pre-"));
+    const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "ab-agy-pre-scr-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agy-pre-ws-"));
+    spawnSync("git", ["init", "-q"], { cwd: dir, encoding: "utf8" });
+    fs.writeFileSync(path.join(dir, "a.txt"), "a\n");
+    spawnSync("git", ["add", "."], { cwd: dir });
+    spawnSync("git", ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init"], { cwd: dir, encoding: "utf8" });
+
+    const result = await runDelegation({
+      host: "codex",
+      target: "antigravity",
+      command: "rescue",
+      write: true,
+      outputMode: "file",
+      prompt: "write report",
+      cwd: dir,
+      env: { ...process.env, AGENT_BRIDGE_HOME: home, AGENT_BRIDGE_STATE_DIR: path.join(home, "state"), AGENT_BRIDGE_ANTIGRAVITY_BIN: fakeAgy, AGENT_BRIDGE_ANTIGRAVITY_SCRATCH: scratch }
+    });
+    assert.ok(result.worktree, "worktree present");
+    assert.equal(fs.existsSync(path.join(result.worktree.path, "agent-bridge-output")), true, "worktree 内预建");
+    assert.equal(fs.existsSync(path.join(scratch, "agent-bridge-output")), true, "scratch 内预建");
+    // 空目录不破坏零产出检测（git 不可见空目录）
+    assert.equal(result.noOutput, true);
+  });
+});

@@ -187,6 +187,12 @@ export async function runAntigravity(req) {
     // 把本次新增的文件搬进 worktree——产出归位，审计可见。
     const scratchDir =
       env.AGENT_BRIDGE_ANTIGRAVITY_SCRATCH || path.join(os.homedir(), ".gemini", "antigravity-cli", "scratch");
+    // --output file：预建产出目录（scratch + worktree/fallback cwd）。
+    // 模型写文件工具直接创建（避免它卡在"建目录/探查"）；空目录 git 不可见，不破坏零产出检测。
+    if (req.outputMode === "file") {
+      fs.mkdirSync(path.join(scratchDir, "agent-bridge-output"), { recursive: true });
+      fs.mkdirSync(path.join(worktree ? worktree.worktreePath : req.cwd, "agent-bridge-output"), { recursive: true });
+    }
     const scratchBefore = new Set();
     if (fs.existsSync(scratchDir)) {
       const walk = (dir) => {
